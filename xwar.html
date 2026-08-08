@@ -35,7 +35,7 @@
 </head>
 <body>
 <div id="wrap"><canvas id="c" width="900" height="520"></canvas></div>
-<div id="hint">MOVE ← →   JUMP ↑   BLOCK ↓   ATTACK: SPACE   MENU: mouse or ↑↓ + ENTER</div>
+<div id="hint">MOVE ← →   JUMP ↑   BLOCK ↓   ATTACK: SPACE   SWAP WEAPON: C   MENU: mouse or ↑↓ + ENTER</div>
 <script>
 (function(){
 "use strict";
@@ -304,10 +304,14 @@ function updateFighter(f, foe){
           foe.hp -= dmg;
           foe.hitstun = 16;
           foe.flash = 6;
-          foe.vx = f.dir*w.kb;
-          foe.vy = -3;
+          // knock the struck figure back so the impact is obvious
+          foe.vx = f.dir * w.kb * 1.7;
+          foe.vy = -4;
+          foe.x += f.dir * 10;      // instant recoil the moment the hit lands
+          f.vx += f.dir * 3;        // attacker leans into the blow
           shake = Math.max(shake, 6 + w.kb*0.3);
-          spawnParticles(foe.x, foe.y-90, '#ff5a5a', 14);
+          spawnParticles(foe.x, foe.y-90, '#3aa8ff', 14);   // water splash
+          spawnParticles(foe.x, foe.y-90, '#bfe9ff', 6);    // light spray
           SFX.hit();
           if(foe.hp<0) foe.hp = 0;
         }
@@ -324,7 +328,21 @@ function updateFighter(f, foe){
   f.bob += 0.05;
 }
 
+function swapRandomWeapon(f){
+  // pick a random UNLOCKED weapon different from the current one
+  const pool = WEAPONS.filter(w=>weaponUnlocked(w) && w!==f.weapon);
+  if(pool.length===0) return;
+  const nw = pool[Math.floor(Math.random()*pool.length)];
+  f.weapon = nw;
+  if(f.isPlayer) playerWeapon = WEAPONS.indexOf(nw);
+  // cancel any in-progress swing so the new weapon starts clean
+  f.attacking = false; f.atkCd = 0; f.hasHit = false;
+  spawnParticles(f.x, f.y-90, '#ffd23f', 10);
+  SFX.select();
+}
+
 function controlPlayer(f){
+  if(pressed['KeyC']) swapRandomWeapon(f);
   if(f.hitstun>0) return;
   f.blocking = keys['ArrowDown'] && f.onGround;
   const spd = f.blocking ? 0 : 3.2;
@@ -503,14 +521,32 @@ const PAL_P = { skin:'#e8b58a', hair:'#3b2a1a', shirt:'#2f6bd6', pants:'#22314f'
 const PAL_E = { skin:'#c98f6b', hair:'#111', shirt:'#c0392b', pants:'#3a1414', shoe:'#111', belt:'#2a0d0d', emblem:'#222' };
 
 /* ---------- scenery ---------- */
+// blocky, pixel-art sun: fills square "pixels" that fall inside a circle
+function drawPixelSun(cx, cy, r, px){
+  // faint pixel halo just outside the disc
+  ctx.fillStyle='rgba(255,214,107,.20)';
+  for(let y=-r-px;y<r+px;y+=px){
+    for(let x=-r-px;x<r+px;x+=px){
+      const dx=x+px/2, dy=y+px/2, d=dx*dx+dy*dy;
+      if(d>r*r && d<=(r+px)*(r+px)) ctx.fillRect(Math.round(cx+x),Math.round(cy+y),px,px);
+    }
+  }
+  // the disc itself
+  ctx.fillStyle='#ffd66b';
+  for(let y=-r;y<r;y+=px){
+    for(let x=-r;x<r;x+=px){
+      const dx=x+px/2, dy=y+px/2;
+      if(dx*dx+dy*dy <= r*r) ctx.fillRect(Math.round(cx+x),Math.round(cy+y),px,px);
+    }
+  }
+}
 function drawArena(){
   // sky
   const g = ctx.createLinearGradient(0,0,0,H);
   g.addColorStop(0,'#3a2b6b'); g.addColorStop(0.6,'#5a3a7a'); g.addColorStop(1,'#2a1b3a');
   ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
-  // sun
-  ctx.fillStyle='#ffd66b'; ctx.fillRect(700,60,70,70);
-  ctx.fillStyle='rgba(255,214,107,.25)'; ctx.fillRect(686,46,98,98);
+  // sun — chunky pixelated circle
+  drawPixelSun(735, 92, 40, 8);
   // distant blocky mountains
   ctx.fillStyle='#3d2f5e';
   for(let i=0;i<8;i++){ const bx=i*130-30; ctx.fillRect(bx,GROUND-120,110,120); ctx.fillRect(bx+20,GROUND-160,70,40); }
@@ -593,9 +629,12 @@ function damageFrom(foe, dmg, kb, dir, blockable){
   }
   let d = dmg * (foe.blocking?0.5:1);
   foe.hp -= d; if(foe.hp<0) foe.hp=0;
-  foe.hitstun = 15; foe.flash = 6; foe.vx = dir*kb; foe.vy = -3;
+  foe.hitstun = 15; foe.flash = 6;
+  foe.vx = dir*kb*1.7; foe.vy = -4; foe.x += dir*10;   // strong, instant recoil
   shake = Math.max(shake, 6+kb*0.3);
-  spawnParticles(foe.x, foe.y-90, '#ff5a5a', 12); SFX.hit();
+  spawnParticles(foe.x, foe.y-90, '#3aa8ff', 12);   // water splash
+  spawnParticles(foe.x, foe.y-90, '#bfe9ff', 5);    // light spray
+  SFX.hit();
 }
 function explode(p){
   spawnParticles(p.x, p.y, p.color, 20);
@@ -696,7 +735,7 @@ function updateHome(){
   });
 }
 function menuRects(){
-  const items=[]; const startY=232, sp=42, h=32;
+  const items=[]; const startY=198, sp=38, h=32;
   for(let i=0;i<MENU.length;i++) items.push({x:W/2-140,y:startY+i*sp,w:280,h:h});
   return items;
 }
@@ -722,7 +761,7 @@ function drawHome(){
   pixelText('XWAR', W/2+4, 130+4, 120, '#000', null);
   pixelText('XWAR', W/2, 130, 120, '#ffd23f', '#ff8a00');
   ctx.restore();
-  pixelText('BLOCKY BATTLE ARENA', W/2, 200, 22, '#c9b8ff', null);
+  pixelText('BLOCKY BATTLE ARENA', W/2, 178, 22, '#c9b8ff', null);
 
   // menu
   const items = menuRects();
@@ -736,9 +775,6 @@ function drawHome(){
     if(sel){ pixelText('>', r.x-24, r.y+r.h/2, 22, '#ffd23f', '#ff8a00');
              pixelText('<', r.x+r.w+24, r.y+r.h/2, 22, '#ffd23f', '#ff8a00'); }
   });
-  const infoY = 232+MENU.length*42+16;
-  pixelText('WEAPON: '+WEAPONS[playerWeapon].name, W/2-130, infoY, 15, '#7fe07f', null);
-  pixelText('LEVEL: '+DIFFICULTIES[difficulty].name, W/2+130, infoY, 15, DIFFICULTIES[difficulty].color, null);
 }
 
 /* ---------- WEAPONS SCREEN (grid + detail) ---------- */
@@ -893,6 +929,7 @@ const HELP_LINES = [
   ['↑        Jump', '#fff'],
   ['↓        Block (hold to guard)', '#fff'],
   ['SPACE    Attack with your weapon', '#fff'],
+  ['C        Swap to a random weapon', '#fff'],
   ['', '#fff'],
   ['HOW TO PLAY', '#ffd23f'],
   ['Win 2 rounds to win the match (best of 3).', '#c9b8ff'],
