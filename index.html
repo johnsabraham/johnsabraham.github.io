@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Super Fun Arcade</title>
+<meta name="description" content="Three tiny games: Memory Match, Whack-a-Mole and Balloon Pop.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bungee&family=Baloo+2:wght@600;800&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🕹️</text></svg>">
+<style>
+/* ============ tokens ============ */
+:root{
+  --night:#1b1040;
+  --night-2:#120a2e;
+  --pink:#ff3d81;
+  --sun:#ffd93b;
+  --cyan:#2fe3e3;
+  --lime:#8ef04a;
+  --grape:#8a4bff;
+  --tang:#ff8a2b;
+  --cream:#fff6e5;
+  --ink:#2a1258;
+  --shadow:#0a0520;
+  --ring:#ffffff;
+  --r-lg:34px;
+  --r-md:22px;
+  --font-display:"Bungee","Baloo 2",system-ui,sans-serif;
+  --font-body:"Baloo 2","Trebuchet MS",system-ui,sans-serif;
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  font-family:var(--font-body);
+  color:var(--cream);
+  background:var(--night);
+  background-image:
+    radial-gradient(1100px 700px at 12% -10%, rgba(138,75,255,.55), transparent 60%),
+    radial-gradient(900px 600px at 92% 8%, rgba(255,61,129,.4), transparent 62%),
+    radial-gradient(900px 700px at 50% 115%, rgba(47,227,227,.32), transparent 60%),
+    linear-gradient(180deg,var(--night) 0%, var(--night-2) 100%);
+  background-attachment:fixed;
+  -webkit-text-size-adjust:100%;
+  overflow-x:hidden;
+  touch-action:manipulation;
+}
+/* speckle texture */
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.5;
+  background-image:
+    radial-gradient(rgba(255,255,255,.20) 1.5px, transparent 1.6px),
+    radial-gradient(rgba(255,255,255,.10) 1.5px, transparent 1.6px);
+  background-size:64px 64px, 37px 37px;
+  background-position:0 0, 18px 22px;
+}
+button{font-family:inherit;color:inherit;border:0;background:none;cursor:pointer}
+:focus-visible{outline:5px solid var(--sun);outline-offset:4px;border-radius:10px}
+
+.wrap{position:relative;z-index:1;max-width:820px;margin:0 auto;padding:18px 16px 56px}
+
+/* ============ marquee ============ */
+.marquee{position:relative;text-align:center;padding:26px 12px 20px;margin-bottom:20px}
+.bulbs{display:flex;justify-content:center;gap:clamp(9px,3vw,18px);margin-bottom:14px}
+.bulbs i{
+  width:clamp(11px,3vw,15px);aspect-ratio:1;border-radius:50%;
+  background:var(--sun);box-shadow:0 0 14px 4px rgba(255,217,59,.75);
+  animation:blink 1.1s steps(1,end) infinite;
+}
+.bulbs i:nth-child(2n){background:var(--pink);box-shadow:0 0 14px 4px rgba(255,61,129,.75);animation-delay:.18s}
+.bulbs i:nth-child(3n){background:var(--cyan);box-shadow:0 0 14px 4px rgba(47,227,227,.7);animation-delay:.36s}
+.bulbs i:nth-child(4n){background:var(--lime);box-shadow:0 0 14px 4px rgba(142,240,74,.7);animation-delay:.54s}
+@keyframes blink{0%,49%{opacity:1}50%,100%{opacity:.22}}
+
+h1{
+  font-family:var(--font-display);
+  font-size:clamp(2.4rem,11vw,4.6rem);
+  line-height:.92;margin:0;letter-spacing:.02em;
+  color:var(--sun);
+  text-shadow:
+    3px 3px 0 var(--tang), 6px 6px 0 var(--pink),
+    9px 9px 0 var(--grape), 12px 12px 0 var(--shadow);
+  transform:rotate(-2deg);
+}
+h1 span{display:block;color:var(--cyan);font-size:.44em;letter-spacing:.06em;
+  text-shadow:2px 2px 0 var(--grape),4px 4px 0 var(--shadow);transform:rotate(3deg);margin-top:.35em}
+
+/* ============ chunky buttons ============ */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:.5em;
+  font-family:var(--font-display);font-size:clamp(1rem,4vw,1.35rem);
+  padding:.72em 1.25em;border-radius:var(--r-md);
+  background:var(--cyan);color:var(--ink);
+  border:4px solid var(--ink);
+  box-shadow:0 9px 0 var(--ink), 0 14px 22px rgba(5,2,20,.55);
+  transition:transform .09s ease, box-shadow .09s ease, filter .15s ease;
+}
+.btn:hover{filter:brightness(1.08)}
+.btn:active{transform:translateY(9px);box-shadow:0 0 0 var(--ink),0 6px 12px rgba(5,2,20,.5)}
+.btn--pink{background:var(--pink);color:#fff}
+.btn--sun{background:var(--sun)}
+.btn--ghost{background:var(--cream)}
+
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px}
+.icon-btn{
+  width:clamp(52px,14vw,64px);aspect-ratio:1;border-radius:50%;
+  display:grid;place-items:center;font-size:clamp(1.5rem,6vw,1.9rem);
+  background:var(--cream);color:var(--ink);border:4px solid var(--ink);
+  box-shadow:0 8px 0 var(--ink);
+  transition:transform .09s ease, box-shadow .09s ease;
+}
+.icon-btn:active{transform:translateY(8px);box-shadow:0 0 0 var(--ink)}
+
+/* ============ screens ============ */
+.screen{display:none;animation:pop-in .38s cubic-bezier(.2,1.5,.4,1) both}
+.screen.active{display:block}
+@keyframes pop-in{from{opacity:0;transform:scale(.9) translateY(18px)}to{opacity:1;transform:none}}
+
+/* ============ home tiles ============ */
+.tiles{display:grid;gap:clamp(16px,4vw,24px)}
+.tile{
+  position:relative;display:flex;align-items:center;gap:clamp(14px,4vw,26px);
+  width:100%;text-align:left;padding:clamp(18px,5vw,26px);
+  border-radius:var(--r-lg);border:5px solid var(--ink);
+  box-shadow:0 12px 0 var(--ink), 0 26px 40px rgba(5,2,20,.5);
+  transition:transform .16s cubic-bezier(.2,1.4,.4,1), box-shadow .16s ease;
+  overflow:hidden;
+}
+.tile::after{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(circle at 18% 12%, rgba(255,255,255,.45), transparent 45%);
+}
+.tile:nth-child(1){background:var(--pink);transform:rotate(-1.6deg)}
+.tile:nth-child(2){background:var(--sun);transform:rotate(1.3deg)}
+.tile:nth-child(3){background:var(--lime);transform:rotate(-1deg)}
+.tile:hover{transform:rotate(0deg) translateY(-6px);box-shadow:0 18px 0 var(--ink),0 32px 46px rgba(5,2,20,.55)}
+.tile:active{transform:rotate(0deg) translateY(10px);box-shadow:0 2px 0 var(--ink)}
+.tile-emoji{
+  font-size:clamp(3rem,13vw,4.4rem);line-height:1;flex:none;
+  filter:drop-shadow(0 6px 0 rgba(0,0,0,.22));
+  animation:bob 2.6s ease-in-out infinite;
+}
+.tile:nth-child(2) .tile-emoji{animation-delay:.3s}
+.tile:nth-child(3) .tile-emoji{animation-delay:.6s}
+@keyframes bob{0%,100%{transform:translateY(0) rotate(-4deg)}50%{transform:translateY(-9px) rotate(5deg)}}
+.tile-text{min-width:0}
+.tile-name{font-family:var(--font-display);font-size:clamp(1.25rem,5.6vw,2rem);color:var(--ink);line-height:1;display:block}
+.tile-note{font-weight:800;font-size:clamp(.95rem,3.6vw,1.15rem);color:rgba(42,18,88,.78);display:block;margin-top:.35em}
+.tile:nth-child(1) .tile-name{color:#fff}
+.tile:nth-child(1) .tile-note{color:rgba(255,255,255,.9)}
+
+/* ============ game shell ============ */
+.game-head{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  margin-bottom:18px;
+}
+.game-title{font-family:var(--font-display);font-size:clamp(1.2rem,5.5vw,1.9rem);margin:0;color:var(--sun);
+  text-shadow:3px 3px 0 var(--shadow)}
+.stats{display:flex;gap:10px;flex-wrap:wrap}
+.stat{
+  font-family:var(--font-display);font-size:clamp(.9rem,3.8vw,1.15rem);
+  background:rgba(255,255,255,.1);border:3px solid rgba(255,255,255,.35);
+  border-radius:16px;padding:.4em .8em;min-width:4.4em;text-align:center;
+  backdrop-filter:blur(4px);
+}
+.stat b{display:block;font-size:1.35em;color:var(--cyan);line-height:1.05}
+.stat.warn b{color:var(--pink)}
+
+.board{
+  position:relative;border-radius:var(--r-lg);
+  border:6px solid var(--ink);
+  background:linear-gradient(180deg, rgba(255,255,255,.14), rgba(0,0,0,.28));
+  box-shadow:inset 0 0 0 5px rgba(255,255,255,.12), 0 16px 0 var(--ink), 0 30px 50px rgba(5,2,20,.5);
+  padding:clamp(12px,3.5vw,20px);
+  overflow:hidden;
+}
+
+/* ---- memory ---- */
+#memGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:clamp(9px,2.6vw,14px)}
+.card{aspect-ratio:1;perspective:900px;background:none;padding:0}
+.card-inner{display:block;position:relative;width:100%;height:100%;transform-style:preserve-3d;
+  transition:transform .45s cubic-bezier(.3,1.3,.4,1)}
+.card.flipped .card-inner{transform:rotateY(180deg)}
+.face{
+  position:absolute;inset:0;display:grid;place-items:center;
+  border-radius:18px;border:4px solid var(--ink);
+  backface-visibility:hidden;-webkit-backface-visibility:hidden;
+  box-shadow:0 6px 0 var(--ink);
+}
+.face-front{background:linear-gradient(160deg,var(--grape),#5a2ac0);font-size:clamp(1.5rem,7vw,2.3rem)}
+.face-back{background:var(--cream);color:var(--ink);transform:rotateY(180deg);
+  font-size:clamp(1.9rem,9vw,3rem)}
+.card.done .face-back{background:var(--lime);animation:cheer .5s ease}
+.card.done{pointer-events:none}
+@keyframes cheer{0%{transform:scale(1)}45%{transform:scale(1.18) rotate(6deg)}100%{transform:scale(1)}}
+
+/* ---- mole ---- */
+#moleGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(10px,3vw,16px)}
+.hole{
+  position:relative;aspect-ratio:1;border-radius:50% 50% 42% 42%;
+  background:radial-gradient(ellipse at 50% 30%, #3a2170 0%, #1a0e3f 70%);
+  border:5px solid var(--ink);box-shadow:inset 0 12px 22px rgba(0,0,0,.75);
+  overflow:hidden;padding:0;
+}
+.mole{
+  position:absolute;left:8%;right:8%;bottom:-4%;height:82%;
+  border-radius:50% 50% 30% 30%;
+  background:linear-gradient(180deg,var(--tang),#d95c00);
+  border:4px solid var(--ink);border-bottom:0;
+  display:grid;place-items:center;font-size:clamp(1.6rem,7.5vw,2.6rem);
+  transform:translateY(105%);transition:transform .18s cubic-bezier(.2,1.5,.4,1);
+}
+.hole.up .mole{transform:translateY(6%)}
+.hole.bonk .mole{background:linear-gradient(180deg,var(--lime),#3fa50f);transform:translateY(42%) scaleY(.72)}
+.hole.up{cursor:pointer}
+
+/* ---- balloons ---- */
+#balloonArena{position:relative;height:min(60vh,440px);overflow:hidden}
+.balloon{
+  position:absolute;bottom:-160px;width:clamp(62px,17vw,88px);
+  padding:0;background:none;will-change:transform;
+  animation:rise linear forwards;
+}
+.balloon .body{
+  display:block;width:100%;aspect-ratio:.82;border-radius:50% 50% 48% 48%;
+  background:radial-gradient(circle at 32% 26%, rgba(255,255,255,.85), transparent 42%), var(--c);
+  border:4px solid var(--ink);
+  animation:sway 2.4s ease-in-out infinite alternate;
+}
+.balloon .string{display:block;width:4px;height:26px;margin:0 auto;background:rgba(255,255,255,.6);border-radius:2px}
+@keyframes rise{to{transform:translateY(calc(-1 * var(--dist)))}}
+@keyframes sway{from{transform:translateX(-9px) rotate(-5deg)}to{transform:translateX(9px) rotate(5deg)}}
+.balloon.popped{animation:none;pointer-events:none}
+.balloon.popped .body{animation:burst .28s ease-out forwards}
+@keyframes burst{to{transform:scale(1.7);opacity:0}}
+.pop-star{position:absolute;font-size:2rem;pointer-events:none;animation:floatUp .6s ease-out forwards}
+@keyframes floatUp{to{transform:translateY(-60px) scale(1.5);opacity:0}}
+
+/* ============ overlay ============ */
+.overlay{
+  position:absolute;inset:0;display:none;place-items:center;text-align:center;
+  background:rgba(18,10,46,.9);backdrop-filter:blur(6px);z-index:5;padding:18px;
+}
+.overlay.show{display:grid;animation:pop-in .35s cubic-bezier(.2,1.5,.4,1) both}
+.overlay .big{font-family:var(--font-display);font-size:clamp(1.8rem,9vw,3rem);color:var(--sun);
+  text-shadow:3px 3px 0 var(--pink),6px 6px 0 var(--shadow);margin:0 0 .3em;line-height:1}
+.overlay p{font-size:clamp(1.05rem,4.4vw,1.4rem);font-weight:800;margin:0 0 1.1em}
+.overlay .row{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+
+.confetti{position:fixed;inset:0;pointer-events:none;z-index:60;overflow:hidden}
+.confetti i{position:absolute;top:-24px;width:13px;height:20px;border-radius:3px;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(105vh) rotate(720deg);opacity:.9}}
+
+.footnote{text-align:center;margin-top:26px;font-weight:600;opacity:.6;font-size:.95rem}
+
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important}
+  .balloon{animation:rise linear forwards !important;animation-duration:6s !important}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <button class="icon-btn" id="homeBtn" data-goto="home" aria-label="Back to the arcade">🏠</button>
+    <button class="icon-btn" id="soundBtn" aria-label="Turn sound off">🔊</button>
+  </div>
+
+  <!-- ================= HOME ================= -->
+  <section class="screen active" id="home">
+    <header class="marquee">
+      <div class="bulbs" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <h1>Super Fun<span>Arcade</span></h1>
+    </header>
+
+    <div class="tiles">
+      <button class="tile" data-goto="memory">
+        <span class="tile-emoji" aria-hidden="true">🐵</span>
+        <span class="tile-text">
+          <span class="tile-name">Memory Match</span>
+          <span class="tile-note">Find the animal twins!</span>
+        </span>
+      </button>
+      <button class="tile" data-goto="mole">
+        <span class="tile-emoji" aria-hidden="true">🐹</span>
+        <span class="tile-text">
+          <span class="tile-name">Whack-a-Mole</span>
+          <span class="tile-note">Tap them before they hide!</span>
+        </span>
+      </button>
+      <button class="tile" data-goto="balloon">
+        <span class="tile-emoji" aria-hidden="true">🎈</span>
+        <span class="tile-text">
+          <span class="tile-name">Balloon Pop</span>
+          <span class="tile-note">Pop them all — POP POP POP!</span>
+        </span>
+      </button>
+    </div>
+
+    <p class="footnote">Tap a game to play 🕹️</p>
+  </section>
+
+  <!-- ================= MEMORY ================= -->
+  <section class="screen" id="memory">
+    <div class="game-head">
+      <h2 class="game-title">🐵 Memory Match</h2>
+      <div class="stats">
+        <span class="stat">Pairs<b id="memPairs">0/6</b></span>
+        <span class="stat">Tries<b id="memTries">0</b></span>
+      </div>
+    </div>
+    <div class="board">
+      <div id="memGrid"></div>
+      <div class="overlay" id="memOver">
+        <div>
+          <p class="big">YOU DID IT! 🎉</p>
+          <p id="memMsg">All the twins are together!</p>
+          <div class="row">
+            <button class="btn btn--sun" data-restart="memory">Play Again</button>
+            <button class="btn btn--ghost" data-goto="home">🏠 Home</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= MOLE ================= -->
+  <section class="screen" id="mole">
+    <div class="game-head">
+      <h2 class="game-title">🐹 Whack-a-Mole</h2>
+      <div class="stats">
+        <span class="stat">Score<b id="moleScore">0</b></span>
+        <span class="stat warn">Time<b id="moleTime">30</b></span>
+        <span class="stat">Best<b id="moleBest">0</b></span>
+      </div>
+    </div>
+    <div class="board">
+      <div id="moleGrid"></div>
+      <div class="overlay show" id="moleStart">
+        <div>
+          <p class="big">READY?</p>
+          <p>Tap every mole that pops up!</p>
+          <button class="btn btn--pink" data-restart="mole">▶ START</button>
+        </div>
+      </div>
+      <div class="overlay" id="moleOver">
+        <div>
+          <p class="big">TIME'S UP!</p>
+          <p id="moleMsg">You bonked 0 moles!</p>
+          <div class="row">
+            <button class="btn btn--sun" data-restart="mole">Play Again</button>
+            <button class="btn btn--ghost" data-goto="home">🏠 Home</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= BALLOON ================= -->
+  <section class="screen" id="balloon">
+    <div class="game-head">
+      <h2 class="game-title">🎈 Balloon Pop</h2>
+      <div class="stats">
+        <span class="stat">Popped<b id="balScore">0</b></span>
+        <span class="stat warn">Time<b id="balTime">30</b></span>
+        <span class="stat">Best<b id="balBest">0</b></span>
+      </div>
+    </div>
+    <div class="board">
+      <div id="balloonArena"></div>
+      <div class="overlay show" id="balStart">
+        <div>
+          <p class="big">READY?</p>
+          <p>Pop as many balloons as you can!</p>
+          <button class="btn btn--pink" data-restart="balloon">▶ START</button>
+        </div>
+      </div>
+      <div class="overlay" id="balOver">
+        <div>
+          <p class="big">ALL DONE!</p>
+          <p id="balMsg">You popped 0 balloons!</p>
+          <div class="row">
+            <button class="btn btn--sun" data-restart="balloon">Play Again</button>
+            <button class="btn btn--ghost" data-goto="home">🏠 Home</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<div class="confetti" id="confetti" aria-hidden="true"></div>
+
+<script>
+/* ========================================================
+   Super Fun Arcade — one file, no libraries.
+   ======================================================== */
+const $  = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const rand = (a, b) => a + Math.random() * (b - a);
+const randInt = (a, b) => Math.floor(rand(a, b + 1));
+
+/* ---------- sound (tiny WebAudio beeps, no files) ---------- */
+const Sound = {
+  on: true, ctx: null,
+  init() {
+    if (!this.ctx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) this.ctx = new AC();
+    }
+    if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+  },
+  tone(freq, dur = .12, type = 'square', vol = .13, delay = 0) {
+    if (!this.on || !this.ctx) return;
+    const t = this.ctx.currentTime + delay;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, t);
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(vol, t + .012);
+    gain.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    osc.connect(gain).connect(this.ctx.destination);
+    osc.start(t); osc.stop(t + dur + .02);
+  },
+  slide(from, to, dur = .18, type = 'sine', vol = .16) {
+    if (!this.on || !this.ctx) return;
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(from, t);
+    osc.frequency.exponentialRampToValueAtTime(to, t + dur);
+    gain.gain.setValueAtTime(vol, t);
+    gain.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    osc.connect(gain).connect(this.ctx.destination);
+    osc.start(t); osc.stop(t + dur + .02);
+  },
+  flip()  { this.tone(560, .07, 'square', .09); },
+  match() { this.tone(660, .1); this.tone(880, .14, 'square', .13, .1); },
+  miss()  { this.tone(180, .16, 'sawtooth', .09); },
+  bonk()  { this.slide(420, 90, .16, 'square', .18); },
+  pop()   { this.slide(900, 220, .13, 'sine', .18); },
+  tick()  { this.tone(1100, .04, 'square', .06); },
+  fanfare() {
+    [523, 659, 784, 1047].forEach((f, i) => this.tone(f, .22, 'square', .12, i * .12));
+  }
+};
+
+const soundBtn = $('#soundBtn');
+soundBtn.addEventListener('click', () => {
+  Sound.on = !Sound.on;
+  soundBtn.textContent = Sound.on ? '🔊' : '🔇';
+  soundBtn.setAttribute('aria-label', Sound.on ? 'Turn sound off' : 'Turn sound on');
+  if (Sound.on) { Sound.init(); Sound.tone(700, .1); }
+});
+document.addEventListener('pointerdown', () => Sound.init(), { once: true });
+
+/* ---------- best scores ---------- */
+const Best = {
+  get(k) { try { return +localStorage.getItem('arcade.best.' + k) || 0; } catch { return 0; } },
+  set(k, v) { try { localStorage.setItem('arcade.best.' + k, v); } catch {} }
+};
+
+/* ---------- confetti ---------- */
+const COLORS = ['#ff3d81', '#ffd93b', '#2fe3e3', '#8ef04a', '#8a4bff', '#ff8a2b'];
+function confetti(count = 70) {
+  const box = $('#confetti');
+  for (let i = 0; i < count; i++) {
+    const bit = document.createElement('i');
+    bit.style.left = rand(0, 100) + 'vw';
+    bit.style.background = COLORS[randInt(0, COLORS.length - 1)];
+    bit.style.animationDuration = rand(1.8, 3.4) + 's';
+    bit.style.animationDelay = rand(0, .5) + 's';
+    box.appendChild(bit);
+    bit.addEventListener('animationend', () => bit.remove());
+  }
+}
+
+/* ---------- screen router ---------- */
+const GAMES = { memory: null, mole: null, balloon: null };
+function show(id) {
+  Object.values(GAMES).forEach(g => g && g.stop && g.stop());
+  $$('.screen').forEach(s => s.classList.toggle('active', s.id === id));
+  $('#homeBtn').style.visibility = id === 'home' ? 'hidden' : 'visible';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+
+  if (id === 'memory') Memory.start();
+  if (id === 'mole')   { Mole.reset();   $('#moleStart').classList.add('show'); }
+  if (id === 'balloon'){ Balloon.reset();$('#balStart').classList.add('show'); }
+}
+document.addEventListener('click', e => {
+  const goto = e.target.closest('[data-goto]');
+  if (goto) { Sound.init(); Sound.tone(760, .09); show(goto.dataset.goto); return; }
+  const again = e.target.closest('[data-restart]');
+  if (again) {
+    Sound.tone(760, .09);
+    const g = again.dataset.restart;
+    if (g === 'memory') Memory.start();
+    if (g === 'mole') Mole.start();
+    if (g === 'balloon') Balloon.start();
+  }
+});
+
+/* ========================================================
+   1. MEMORY MATCH
+   ======================================================== */
+const Memory = GAMES.memory = {
+  faces: ['🐶', '🐱', '🦁', '🐸', '🐵', '🦄'],
+  first: null, lock: false, tries: 0, found: 0, timer: null,
+
+  start() {
+    clearTimeout(this.timer);
+    this.first = null; this.lock = false; this.tries = 0; this.found = 0;
+    $('#memOver').classList.remove('show');
+    $('#memTries').textContent = '0';
+    $('#memPairs').textContent = '0/6';
+
+    const deck = [...this.faces, ...this.faces]
+      .map(v => ({ v, k: Math.random() }))
+      .sort((a, b) => a.k - b.k)
+      .map(o => o.v);
+
+    const grid = $('#memGrid');
+    grid.innerHTML = '';
+    deck.forEach((face, i) => {
+      const card = document.createElement('button');
+      card.className = 'card';
+      card.dataset.face = face;
+      card.setAttribute('aria-label', 'Card ' + (i + 1));
+      card.innerHTML =
+        '<span class="card-inner">' +
+          '<span class="face face-front" aria-hidden="true">❓</span>' +
+          '<span class="face face-back">' + face + '</span>' +
+        '</span>';
+      card.addEventListener('click', () => this.pick(card));
+      grid.appendChild(card);
+    });
+  },
+
+  pick(card) {
+    if (this.lock || card.classList.contains('flipped')) return;
+    card.classList.add('flipped');
+    Sound.flip();
+
+    if (!this.first) { this.first = card; return; }
+
+    this.tries++;
+    $('#memTries').textContent = this.tries;
+
+    if (this.first.dataset.face === card.dataset.face) {
+      this.first.classList.add('done');
+      card.classList.add('done');
+      this.first = null;
+      this.found++;
+      $('#memPairs').textContent = this.found + '/6';
+      Sound.match();
+      if (this.found === this.faces.length) this.win();
+    } else {
+      this.lock = true;
+      const a = this.first, b = card;
+      this.first = null;
+      Sound.miss();
+      this.timer = setTimeout(() => {
+        a.classList.remove('flipped');
+        b.classList.remove('flipped');
+        this.lock = false;
+      }, 850);
+    }
+  },
+
+  win() {
+    Sound.fanfare();
+    confetti(110);
+    $('#memMsg').textContent = 'All 6 twins found in ' + this.tries + ' tries!';
+    setTimeout(() => $('#memOver').classList.add('show'), 550);
+  },
+
+  stop() { clearTimeout(this.timer); this.lock = false; }
+};
+
+/* ========================================================
+   2. WHACK-A-MOLE
+   ======================================================== */
+const Mole = GAMES.mole = {
+  ROUND: 30,
+  score: 0, left: 30, running: false,
+  tickId: null, popId: null, hideId: null, active: null,
+
+  build() {
+    const grid = $('#moleGrid');
+    if (grid.children.length) return;
+    for (let i = 0; i < 9; i++) {
+      const hole = document.createElement('button');
+      hole.className = 'hole';
+      hole.setAttribute('aria-label', 'Mole hole ' + (i + 1));
+      hole.innerHTML = '<span class="mole" aria-hidden="true">🐹</span>';
+      hole.addEventListener('click', () => this.hit(hole));
+      grid.appendChild(hole);
+    }
+  },
+
+  reset() {
+    this.build();
+    this.stop();
+    this.score = 0; this.left = this.ROUND;
+    $('#moleScore').textContent = '0';
+    $('#moleTime').textContent = this.ROUND;
+    $('#moleBest').textContent = Best.get('mole');
+    $('#moleOver').classList.remove('show');
+  },
+
+  start() {
+    this.reset();
+    $('#moleStart').classList.remove('show');
+    this.running = true;
+    this.tickId = setInterval(() => {
+      this.left--;
+      $('#moleTime').textContent = this.left;
+      if (this.left <= 5 && this.left > 0) Sound.tick();
+      if (this.left <= 0) this.end();
+    }, 1000);
+    this.next();
+  },
+
+  next() {
+    if (!this.running) return;
+    const holes = $$('.hole');
+    let hole;
+    do { hole = holes[randInt(0, holes.length - 1)]; } while (hole === this.active && holes.length > 1);
+    this.active = hole;
+    hole.classList.add('up');
+
+    // moles get faster as the round goes on
+    const speed = 1.0 - (this.ROUND - this.left) / this.ROUND * 0.5;
+    const upFor = rand(620, 1150) * speed;
+
+    this.hideId = setTimeout(() => {
+      hole.classList.remove('up', 'bonk');
+      this.popId = setTimeout(() => this.next(), rand(180, 480) * speed);
+    }, upFor);
+  },
+
+  hit(hole) {
+    if (!this.running || !hole.classList.contains('up') || hole.classList.contains('bonk')) return;
+    hole.classList.add('bonk');
+    this.score++;
+    $('#moleScore').textContent = this.score;
+    Sound.bonk();
+  },
+
+  end() {
+    this.stop();
+    const best = Math.max(this.score, Best.get('mole'));
+    Best.set('mole', best);
+    $('#moleBest').textContent = best;
+    $('#moleMsg').textContent = 'You bonked ' + this.score + (this.score === 1 ? ' mole!' : ' moles!');
+    if (this.score >= best && this.score > 0) { confetti(90); Sound.fanfare(); }
+    else Sound.tone(300, .3, 'square', .12);
+    $('#moleOver').classList.add('show');
+  },
+
+  stop() {
+    this.running = false;
+    clearInterval(this.tickId);
+    clearTimeout(this.popId);
+    clearTimeout(this.hideId);
+    $$('.hole').forEach(h => h.classList.remove('up', 'bonk'));
+  }
+};
+
+/* ========================================================
+   3. BALLOON POP
+   ======================================================== */
+const Balloon = GAMES.balloon = {
+  ROUND: 30,
+  score: 0, left: 30, running: false,
+  tickId: null, spawnId: null,
+
+  reset() {
+    this.stop();
+    this.score = 0; this.left = this.ROUND;
+    $('#balScore').textContent = '0';
+    $('#balTime').textContent = this.ROUND;
+    $('#balBest').textContent = Best.get('balloon');
+    $('#balOver').classList.remove('show');
+    $('#balloonArena').innerHTML = '';
+  },
+
+  start() {
+    this.reset();
+    $('#balStart').classList.remove('show');
+    this.running = true;
+    this.tickId = setInterval(() => {
+      this.left--;
+      $('#balTime').textContent = this.left;
+      if (this.left <= 5 && this.left > 0) Sound.tick();
+      if (this.left <= 0) this.end();
+    }, 1000);
+    this.spawn();
+  },
+
+  spawn() {
+    if (!this.running) return;
+    const arena = $('#balloonArena');
+    const b = document.createElement('button');
+    b.className = 'balloon';
+    b.setAttribute('aria-label', 'Pop the balloon');
+    b.style.setProperty('--c', COLORS[randInt(0, COLORS.length - 1)]);
+    b.style.left = rand(2, 78) + '%';
+    b.style.setProperty('--dist', (arena.clientHeight + 260) + 'px');
+    b.style.animationDuration = rand(4.2, 7.5) + 's';
+    b.innerHTML = '<span class="body"></span><span class="string"></span>';
+    b.addEventListener('animationend', () => b.remove());
+    b.addEventListener('click', () => this.pop(b));
+    arena.appendChild(b);
+
+    // spawn faster as the round goes on
+    const gap = rand(430, 900) * (1 - (this.ROUND - this.left) / this.ROUND * 0.45);
+    this.spawnId = setTimeout(() => this.spawn(), gap);
+  },
+
+  pop(b) {
+    if (!this.running || b.classList.contains('popped')) return;
+    b.classList.add('popped');
+    this.score++;
+    $('#balScore').textContent = this.score;
+    Sound.pop();
+
+    const star = document.createElement('span');
+    star.className = 'pop-star';
+    star.textContent = '⭐';
+    const arena = $('#balloonArena');
+    const r = b.getBoundingClientRect(), ar = arena.getBoundingClientRect();
+    star.style.left = (r.left - ar.left + r.width / 2 - 16) + 'px';
+    star.style.top = (r.top - ar.top) + 'px';
+    arena.appendChild(star);
+    setTimeout(() => star.remove(), 620);
+    setTimeout(() => b.remove(), 320);
+  },
+
+  end() {
+    this.stop();
+    const best = Math.max(this.score, Best.get('balloon'));
+    Best.set('balloon', best);
+    $('#balBest').textContent = best;
+    $('#balMsg').textContent = 'You popped ' + this.score + (this.score === 1 ? ' balloon!' : ' balloons!');
+    if (this.score >= best && this.score > 0) { confetti(90); Sound.fanfare(); }
+    else Sound.tone(300, .3, 'square', .12);
+    $('#balOver').classList.add('show');
+  },
+
+  stop() {
+    this.running = false;
+    clearInterval(this.tickId);
+    clearTimeout(this.spawnId);
+  }
+};
+
+/* ---------- boot ---------- */
+$('#homeBtn').style.visibility = 'hidden';
+$('#moleBest').textContent = Best.get('mole');
+$('#balBest').textContent = Best.get('balloon');
+Mole.build();
+</script>
+</body>
+</html>
