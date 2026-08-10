@@ -127,11 +127,42 @@ function unlockNext(){
   return null; // everything already unlocked
 }
 
+/* ---------- potions (earned by winning matches) ----------
+   Cards stay LOCKED until you earn one of that type. */
+const HP_BASE   = MAX_HP;   // base max health (140)
+const ENCH_STEP = 0.12;     // +12% weapon damage per enchant level
+const ENCH_CAP  = 3;        // max enchant levels per weapon
+const HP_STEP   = 15;       // +15 max HP per health potion
+const HP_CAP    = 60;       // up to +60 (max 200)
+const POTIONS = [
+  { key:'enchant', name:'ENCHANTING POTION', icon:'#b46bff', glow:'#d9a6ff',
+    desc:'Upgrade your EQUIPPED weapon: +12% damage each (max +3).' },
+  { key:'health',  name:'HEALTH POTION',     icon:'#ff4c6b', glow:'#ff9ab0',
+    desc:'Permanently raise your MAX HEALTH by 15 (up to +60).' }
+];
+let potions = { enchant:0, health:0 };   // how many you own
+let weaponLevels = {};                    // weapon name -> enchant level
+let bonusHP = 0;                          // extra max HP from health potions
+let potionsUnlocked = new Set();          // which potion cards are revealed
+function enchantLevel(w){ return w ? (weaponLevels[w.name]||0) : 0; }
+function enchantMult(w){ return 1 + ENCH_STEP*enchantLevel(w); }
+function playerMaxHP(){ return HP_BASE + bonusHP; }
+function potionDef(key){ return POTIONS.find(p=>p.key===key); }
+// win a match -> earn one random potion; reveal its card the first time
+function awardPotion(){
+  const key = Math.random()<0.5 ? 'enchant' : 'health';
+  potions[key]++;
+  potionsUnlocked.add(key);
+  saveState();
+  return potionDef(key);
+}
+
 /* ---------- saved progress (browser localStorage) ---------- */
 const SAVE_KEY = 'xwar_save_v1';
 function saveState(){
   try{ localStorage.setItem(SAVE_KEY, JSON.stringify({
-    unlocked:[...unlocked], weapon:playerWeapon, difficulty
+    unlocked:[...unlocked], weapon:playerWeapon, difficulty,
+    potions, weaponLevels, bonusHP, potionsUnlocked:[...potionsUnlocked]
   })); }catch(e){}
 }
 function loadState(){
@@ -141,6 +172,10 @@ function loadState(){
     if(Array.isArray(s.unlocked)) s.unlocked.forEach(n=>unlocked.add(n));
     if(typeof s.difficulty==='number' && DIFFICULTIES[s.difficulty]) difficulty = s.difficulty;
     if(typeof s.weapon==='number' && WEAPONS[s.weapon] && weaponUnlocked(WEAPONS[s.weapon])) playerWeapon = s.weapon;
+    if(s.potions){ potions.enchant = s.potions.enchant|0; potions.health = s.potions.health|0; }
+    if(s.weaponLevels && typeof s.weaponLevels==='object') weaponLevels = s.weaponLevels;
+    if(typeof s.bonusHP==='number') bonusHP = Math.max(0, Math.min(HP_CAP, s.bonusHP));
+    if(Array.isArray(s.potionsUnlocked)) s.potionsUnlocked.forEach(k=>potionsUnlocked.add(k));
   }catch(e){}
 }
 
@@ -159,19 +194,22 @@ let difficulty = 0; // index; default Beginner
 
 /* ---------- fighter ---------- */
 function makeFighter(x, dir, isPlayer){
+  const wpn = isPlayer ? WEAPONS[playerWeapon] : WEAPONS[0];
+  const maxHp = isPlayer ? playerMaxHP() : HP_BASE;
   return {
     x, y:GROUND, vx:0, vy:0, dir, isPlayer,
-    hp:MAX_HP, onGround:true,
+    hp:maxHp, maxHp, onGround:true,
     attacking:false, atkTimer:0, atkCd:0, hasHit:false,
     blocking:false, hitstun:0, flash:0,
-    weapon: isPlayer ? WEAPONS[playerWeapon] : WEAPONS[0],
+    weapon: wpn,
     walk:0, wins:0, bob:Math.random()*6.28, dmgMult:1,
+    enchant: isPlayer ? enchantMult(wpn) : 1,  // player weapon damage bonus
     ai:{ think:0, action:'idle' }
   };
 }
 
 /* ---------- game state ---------- */
-let scene = 'home';        // home | weapons | fight | roundover | matchover | quit
+let scene = 'home';        // home | weapons | potions | difficulty | help | fight | roundover | matchover | quit
 let playerWeapon = 0;
 let menuIndex = 0;
 let weaponIndex = 0;
@@ -179,6 +217,7 @@ let player, enemy;
 let particles = [];
 let projectiles = [];
 let unlockNotice = null;   // name of weapon just unlocked, shown between rounds
+let potionNotice = null;   // potion earned this match, shown on match-over
 let shake = 0;
 let round = 1;
 let roundBanner = 0, bannerText = '';
@@ -186,7 +225,9 @@ let countdownStart = 0, lastCount = 0;
 let matchResult = '';
 let demoTimer = 0;
 let diffIndex = 0;
-const MENU = ['PLAY','WEAPONS','DIFFICULTY','HELP','RESTART','QUIT'];
+let potionIndex = 0;
+let potionMsg = '';        // transient feedback on the potions screen
+const MENU = ['PLAY','WEAPONS','POTIONS','DIFFICULTY','HELP','RESTART','QUIT'];
 
 loadState();   // restore unlocked weapons + last weapon/difficulty
 
@@ -199,11 +240,12 @@ function startMatch(){
   player = makeFighter(260, 1, true);
   enemy  = makeFighter(640, -1, false);
   player.weapon = WEAPONS[playerWeapon];
+  player.enchant = enchantMult(player.weapon);
   // Beginner = fair mirror match (CPU uses your weapon); harder levels use a base weapon.
   enemy.weapon = (difficulty===0) ? WEAPONS[playerWeapon] : pickEnemyWeapon();
   enemy.dmgMult = DIFFICULTIES[difficulty].dmg;
   round = 1; player.wins = 0; enemy.wins = 0;
-  particles = []; projectiles = []; unlockNotice = null;
+  particles = []; projectiles = []; unlockNotice = null; potionNotice = null;
   scene = 'fight';
   showBanner('ROUND 1 — FIGHT!');
 }
@@ -212,7 +254,7 @@ function pickEnemyWeapon(){
   return base[Math.floor(Math.random()*base.length)];
 }
 function nextRound(){
-  player.hp = MAX_HP; enemy.hp = MAX_HP;
+  player.hp = player.maxHp; enemy.hp = enemy.maxHp;
   player.x = 260; enemy.x = 640;
   player.dir = 1; enemy.dir = -1;
   player.vx=player.vy=0; enemy.vx=enemy.vy=0;
@@ -299,7 +341,7 @@ function updateFighter(f, foe){
           spawnParticles(foe.x + foe.dir* -20, foe.y-90, '#8fd0ff', 8);
           SFX.block();
         } else {
-          let dmg = w.dmg * (f.dmgMult||1);
+          let dmg = w.dmg * (f.dmgMult||1) * (f.enchant||1);
           if(foe.blocking) dmg *= 0.5;
           foe.hp -= dmg;
           foe.hitstun = 16;
@@ -334,7 +376,7 @@ function swapRandomWeapon(f){
   if(pool.length===0) return;
   const nw = pool[Math.floor(Math.random()*pool.length)];
   f.weapon = nw;
-  if(f.isPlayer) playerWeapon = WEAPONS.indexOf(nw);
+  if(f.isPlayer){ playerWeapon = WEAPONS.indexOf(nw); f.enchant = enchantMult(nw); }
   // cancel any in-progress swing so the new weapon starts clean
   f.attacking = false; f.atkCd = 0; f.hasHit = false;
   spawnParticles(f.x, f.y-90, '#ffd23f', 10);
@@ -564,7 +606,7 @@ function drawHealthBar(f, x, align){
   const bw = 340, bh = 26;
   ctx.fillStyle='#000'; ctx.fillRect(x-3,27,bw+6,bh+6);
   ctx.fillStyle='#3a1414'; ctx.fillRect(x,30,bw,bh);
-  const pct = Math.max(0,f.hp)/MAX_HP;
+  const pct = Math.max(0,f.hp)/(f.maxHp||MAX_HP);
   const col = pct>0.5 ? '#4ce04c' : pct>0.25 ? '#ffcf3f' : '#ff4c4c';
   const ww = bw*pct;
   ctx.fillStyle = col;
@@ -615,7 +657,7 @@ function spawnProjectile(f){
   projectiles.push({
     x: f.x + f.dir*30, y: f.y-92, dir: f.dir,
     vx: f.dir*(w.kind==='throw'?7:11), vy: w.kind==='throw'?-8:0,
-    dmg: w.dmg*(f.dmgMult||1), kb: w.kb,
+    dmg: w.dmg*(f.dmgMult||1)*(f.enchant||1), kb: w.kb,
     color: w.proj||w.color||'#fff', glow: w.glow, kind: w.kind, style: w.style,
     owner: f, life: w.kind==='throw'?140:80
   });
@@ -735,7 +777,7 @@ function updateHome(){
   });
 }
 function menuRects(){
-  const items=[]; const startY=198, sp=38, h=32;
+  const items=[]; const startY=196, sp=34, h=30;
   for(let i=0;i<MENU.length;i++) items.push({x:W/2-140,y:startY+i*sp,w:280,h:h});
   return items;
 }
@@ -744,6 +786,7 @@ function chooseMenu(i){
   const item = MENU[i];
   if(item==='PLAY') startMatch();
   else if(item==='WEAPONS'){ scene='weapons'; weaponIndex=playerWeapon; }
+  else if(item==='POTIONS'){ scene='potions'; potionIndex=0; potionMsg=''; }
   else if(item==='DIFFICULTY'){ scene='difficulty'; diffIndex=difficulty; }
   else if(item==='HELP'){ scene='help'; }
   else if(item==='RESTART'){ playerWeapon=0; difficulty=0; weaponIndex=0; menuIndex=0; saveState(); showBanner(''); scene='home'; }
@@ -761,7 +804,7 @@ function drawHome(){
   pixelText('XWAR', W/2+4, 130+4, 120, '#000', null);
   pixelText('XWAR', W/2, 130, 120, '#ffd23f', '#ff8a00');
   ctx.restore();
-  pixelText('BLOCKY BATTLE ARENA', W/2, 178, 22, '#c9b8ff', null);
+  pixelText('BLOCKY BATTLE ARENA', W/2, 172, 22, '#c9b8ff', null);
 
   // menu
   const items = menuRects();
@@ -821,7 +864,9 @@ function drawWeapons(){
     ctx.fillRect(r.x,r.y,r.w,r.h);
     if(on){
       pixelText(w.short, r.x+r.w/2, r.y+20, 14, sel?'#ffd23f':'#fff', null);
-      stat('PWR', w.dmg/18, r.x+16, r.y+42, r.w-32, '#ff5a5a');
+      const el = enchantLevel(w);
+      if(el>0) pixelText('+'+el, r.x+r.w-16, r.y+16, 13, '#c79bff', '#8a4bff');
+      stat('PWR', (w.dmg*enchantMult(w))/18, r.x+16, r.y+42, r.w-32, '#ff5a5a');
       if(i===playerWeapon) pixelText('★ EQUIPPED', r.x+r.w/2, r.y+64, 10, '#7fe07f', null);
     } else {
       const lx=r.x+r.w/2, ly=r.y+24;
@@ -839,7 +884,7 @@ function drawWeapons(){
   ctx.fillStyle= on?'#ffd23f':'#6a5f8a'; ctx.fillRect(47,py,6,120);
   ctx.save(); ctx.textAlign='left'; ctx.textBaseline='alphabetic';
   ctx.font='bold 22px "Courier New",monospace'; ctx.fillStyle= on?'#ffd23f':'#8a7fb0';
-  ctx.fillText(w.name, 72, py+34);
+  ctx.fillText(w.name + (enchantLevel(w)>0?'  +'+enchantLevel(w):''), 72, py+34);
   ctx.font='14px "Courier New",monospace'; ctx.fillStyle='#b8a8e0';
   ctx.fillText(w.desc, 72, py+62);
   ctx.font='bold 15px "Courier New",monospace';
@@ -851,7 +896,7 @@ function drawWeapons(){
     ctx.fillText('LOCKED — WIN ROUNDS TO UNLOCK IT', 72, py+96);
   }
   ctx.restore();
-  stat('PWR', w.dmg/18,          520, py+22, 300, '#ff5a5a');
+  stat('PWR', (w.dmg*enchantMult(w))/18, 520, py+22, 300, '#ff5a5a');
   stat('SPD', 1-(w.cd-16)/56,    520, py+54, 300, '#5ad0ff');
   stat('RCH', (w.reach-46)/64,   520, py+86, 300, '#7fe07f');
 
@@ -922,6 +967,102 @@ function drawDifficulty(){
   pixelText('← →  BROWSE      ENTER  SELECT      ↓  BACK', W/2, H-56, 18, '#c9b8ff', null);
 }
 
+/* ---------- POTIONS SCREEN ---------- */
+// blocky pixel potion bottle; greyed out when locked
+function drawPotionBottle(cx, cy, col, glow, locked){
+  ctx.save();
+  if(glow && !locked){ ctx.shadowColor=glow; ctx.shadowBlur=16; }
+  // cork + neck
+  ctx.fillStyle = '#6b4a2a'; ctx.fillRect(cx-8, cy-56, 16, 12);
+  ctx.fillStyle = locked?'#2a2740':'#cdd6e6'; ctx.fillRect(cx-6, cy-46, 12, 14);
+  // glass body
+  ctx.fillStyle = locked?'#20203a':'#141d30';
+  ctx.fillRect(cx-26, cy-34, 52, 60);
+  ctx.fillRect(cx-20, cy-40, 40, 8);
+  // liquid
+  ctx.fillStyle = locked?'#3a3358':col;
+  ctx.fillRect(cx-22, cy-6, 44, 30);
+  ctx.fillRect(cx-18, cy-14, 36, 10);
+  // bubbles + shine
+  if(!locked){
+    ctx.fillStyle='rgba(255,255,255,.55)'; ctx.fillRect(cx-13, cy-2, 5,5); ctx.fillRect(cx+7, cy+8, 4,4);
+    ctx.fillStyle='rgba(255,255,255,.15)'; ctx.fillRect(cx-22, cy-32, 6, 52);
+  }
+  ctx.restore();
+}
+function potionRects(){
+  const n=POTIONS.length, cw=300, gap=44;
+  const total=n*cw+(n-1)*gap, startX=(W-total)/2;
+  const cards=[];
+  for(let i=0;i<n;i++) cards.push({x:startX+i*(cw+gap),y:150,w:cw,h:252});
+  return cards;
+}
+function usePotion(key){
+  const p = potionDef(key);
+  if(!potionsUnlocked.has(key)){ SFX.block(); potionMsg='LOCKED — WIN A MATCH TO EARN IT'; return; }
+  if(potions[key]<=0){ SFX.block(); potionMsg='YOU HAVE NO '+p.name+'S'; return; }
+  if(key==='enchant'){
+    const w = WEAPONS[playerWeapon];
+    if(enchantLevel(w) >= ENCH_CAP){ SFX.block(); potionMsg=w.name+' IS ALREADY MAXED (+'+ENCH_CAP+')'; return; }
+    weaponLevels[w.name] = enchantLevel(w)+1;
+    potions.enchant--; saveState(); SFX.win();
+    potionMsg=w.name+' ENCHANTED TO +'+weaponLevels[w.name]+'  (+'+Math.round(ENCH_STEP*weaponLevels[w.name]*100)+'% DMG)';
+  } else {
+    if(bonusHP >= HP_CAP){ SFX.block(); potionMsg='MAX HEALTH ALREADY MAXED ('+(HP_BASE+HP_CAP)+')'; return; }
+    bonusHP = Math.min(HP_CAP, bonusHP+HP_STEP);
+    potions.health--; saveState(); SFX.win();
+    potionMsg='MAX HEALTH RAISED TO '+playerMaxHP();
+  }
+}
+function updatePotions(){
+  if(pressed['ArrowLeft']){ potionIndex=(potionIndex+POTIONS.length-1)%POTIONS.length; potionMsg=''; SFX.select(); }
+  if(pressed['ArrowRight']){ potionIndex=(potionIndex+1)%POTIONS.length; potionMsg=''; SFX.select(); }
+  if(pressed['Enter']||pressed['Space']){ usePotion(POTIONS[potionIndex].key); }
+  if(pressed['Backspace']){ scene='home'; menuIndex=0; }
+  potionRects().forEach((r,i)=>{
+    if(mouse.x>r.x&&mouse.x<r.x+r.w&&mouse.y>r.y&&mouse.y<r.y+r.h){
+      if(i!==potionIndex){ potionIndex=i; potionMsg=''; }
+      if(mouse.click) usePotion(POTIONS[i].key);
+    }
+  });
+}
+function drawPotions(){
+  drawArena();
+  ctx.fillStyle='rgba(13,11,20,.8)'; ctx.fillRect(0,0,W,H);
+  pixelText('POTIONS', W/2, 62, 40, '#ffd23f', '#ff8a00');
+  pixelText('EARN THEM BY WINNING MATCHES', W/2, 100, 15, '#c9b8ff', null);
+
+  potionRects().forEach((r,i)=>{
+    const p = POTIONS[i], on = potionsUnlocked.has(p.key), sel = i===potionIndex;
+    ctx.fillStyle = sel ? p.glow : '#2a2140'; ctx.fillRect(r.x-4,r.y-4,r.w+8,r.h+8);
+    ctx.fillStyle = '#141024'; ctx.fillRect(r.x,r.y,r.w,r.h);
+    const cx = r.x+r.w/2;
+    drawPotionBottle(cx, r.y+90, p.icon, p.glow, !on);
+    if(on){
+      pixelText(p.name, cx, r.y+146, 18, sel?p.glow:'#fff', null);
+      ctx.save(); ctx.font='12px "Courier New",monospace'; ctx.fillStyle='#b8a8e0'; ctx.textAlign='center';
+      wrapText(p.desc, cx, r.y+172, r.w-34, 15);
+      ctx.restore();
+      pixelText('OWNED: '+potions[p.key], cx, r.y+r.h-42, 16, potions[p.key]>0?'#7fe07f':'#6a5f8a', null);
+      const status = p.key==='enchant'
+        ? WEAPONS[playerWeapon].name+'  +'+enchantLevel(WEAPONS[playerWeapon])+' / +'+ENCH_CAP
+        : 'MAX HP  '+playerMaxHP()+' / '+(HP_BASE+HP_CAP);
+      pixelText(status, cx, r.y+r.h-18, 13, '#ffd23f', null);
+    } else {
+      const lx=cx, ly=r.y+150;
+      ctx.fillStyle=sel?'#ffd23f':'#6a5f8a';
+      ctx.fillRect(lx-8,ly-16,16,5); ctx.fillRect(lx-10,ly-14,4,12); ctx.fillRect(lx+6,ly-14,4,12);
+      ctx.fillRect(lx-16, ly-2, 32, 26);
+      ctx.fillStyle='#0f0c1a'; ctx.fillRect(lx-3, ly+6, 6, 10);
+      pixelText('LOCKED', cx, r.y+r.h-42, 16, sel?'#ffd23f':'#6a5f8a', null);
+      pixelText('WIN A MATCH TO EARN', cx, r.y+r.h-18, 12, '#8a7fb0', null);
+    }
+  });
+
+  if(potionMsg) pixelText(potionMsg, W/2, H-62, 15, '#7fe07f', null);
+  pixelText('← →  BROWSE      ENTER  USE      ESC  BACK', W/2, H-28, 16, '#c9b8ff', null);
+}
+
 /* ---------- HELP SCREEN ---------- */
 const HELP_LINES = [
   ['CONTROLS', '#ffd23f'],
@@ -941,7 +1082,8 @@ const HELP_LINES = [
   ['WEAPONS changes your reach, speed & power.', '#7fe07f'],
   ['DIFFICULTY sets how tough the CPU fights.', '#7fe07f'],
   ['WIN ROUNDS to UNLOCK new weapons!', '#7fe07f'],
-  ['Unlocks are SAVED in this browser.', '#7fe07f']
+  ['WIN MATCHES to earn POTIONS (enchant / health).', '#7fe07f'],
+  ['Progress is SAVED in this browser.', '#7fe07f']
 ];
 function updateHelp(){
   if(pressed['Space']||pressed['Enter']||pressed['ArrowDown']||pressed['Backspace']||mouse.click){
@@ -986,6 +1128,7 @@ function updateFight(){
     else if(player.hp<=0){ enemy.wins++; }
     if(player.wins>=2 || enemy.wins>=2){
       matchResult = player.wins>=2 ? 'YOU WIN!' : 'YOU LOSE';
+      potionNotice = player.wins>=2 ? awardPotion() : null;  // win the match -> earn a potion
       if(player.wins>=2) SFX.win(); else SFX.lose();
       scene='matchover';
       roundBanner=0;
@@ -1065,12 +1208,10 @@ function drawMatchover(){
   const win = matchResult==='YOU WIN!';
   pixelText(matchResult, W/2, H/2-40, 90, win?'#ffd23f':'#ff5a5a', win?'#ff8a00':'#900');
   pixelText('SCORE  YOU '+player.wins+'  —  '+enemy.wins+' CPU', W/2, H/2+40, 26, '#fff', null);
-  if(unlockNotice){
-    pixelText('★ NEW WEAPON UNLOCKED: '+unlockNotice, W/2, H/2+92, 18, '#ffd23f', '#ff8a00');
-    pixelText('PRESS SPACE / CLICK FOR MENU', W/2, H/2+132, 18, '#c9b8ff', null);
-  } else {
-    pixelText('PRESS SPACE / CLICK FOR MENU', W/2, H/2+100, 20, '#c9b8ff', null);
-  }
+  let ny = H/2+84;
+  if(unlockNotice){ pixelText('★ NEW WEAPON UNLOCKED: '+unlockNotice, W/2, ny, 18, '#ffd23f', '#ff8a00'); ny += 30; }
+  if(potionNotice){ pixelText('★ POTION EARNED: '+potionNotice.name, W/2, ny, 18, potionNotice.glow, potionNotice.icon); ny += 30; }
+  pixelText('PRESS SPACE / CLICK FOR MENU', W/2, ny+8, 18, '#c9b8ff', null);
 }
 
 /* ---------- QUIT ---------- */
@@ -1089,6 +1230,7 @@ function loop(){
   switch(scene){
     case 'home': updateHome(); drawHome(); break;
     case 'weapons': updateWeapons(); drawWeapons(); break;
+    case 'potions': updatePotions(); drawPotions(); break;
     case 'difficulty': updateDifficulty(); drawDifficulty(); break;
     case 'help': updateHelp(); drawHelp(); break;
     case 'fight': updateFight(); drawFight(); break;
