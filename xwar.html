@@ -553,6 +553,51 @@ function drawFighter(f, palette, t){
   // chest emblem
   pxr(cx-6, torsoY+14, 12, 14, P.emblem, 3);
 
+  // ---- active armor worn over the torso (player only) ----
+  let wornArmor = null;
+  if(f.armorStack){ for(let i=f.armorIdx;i<f.armorStack.length;i++){ if(f.armorStack[i].dura>0){ wornArmor=f.armorStack[i].def; break; } } }
+  if(wornArmor){
+    const bcol=wornArmor.body, tcol=wornArmor.trim, ty=torsoY;
+    fillRR(cx-25, ty-1, 50, 50, 13, tcol);                 // trim backing
+    fillRR(cx-24, ty-1, 15, 13, 5, tcol);                  // left pauldron
+    fillRR(cx+9,  ty-1, 15, 13, 5, tcol);                  // right pauldron
+    fillRR(cx-21, ty+2, 42, 44, 11, bcol);                 // chest plate
+    // material texture, clipped to the plate so wood/leather/etc. read distinctly
+    const P0x=cx-21, P0y=ty+2, PW=42, PH=44, dk=shade(bcol,-0.32), lt=shade(bcol,0.28);
+    ctx.save(); rrpath(P0x,P0y,PW,PH,11); ctx.clip();
+    ctx.fillStyle=shade(bcol,0.22); ctx.fillRect(Math.round(cx-16),Math.round(ty+7),5,30);  // highlight
+    switch(wornArmor.style){
+      case 'wood':                                          // vertical planks
+        ctx.strokeStyle=dk; ctx.lineWidth=2;
+        ctx.beginPath(); ctx.moveTo(cx-7,P0y); ctx.lineTo(cx-7,P0y+PH);
+                         ctx.moveTo(cx+7,P0y); ctx.lineTo(cx+7,P0y+PH); ctx.stroke();
+        break;
+      case 'leather':                                       // stitched border + seam
+        ctx.strokeStyle=lt; ctx.lineWidth=1.6; ctx.setLineDash([4,3]);
+        rrpath(P0x+4,P0y+4,PW-8,PH-8,8); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(cx,P0y+4); ctx.lineTo(cx,P0y+PH-4); ctx.stroke();
+        ctx.setLineDash([]);
+        break;
+      case 'chain':                                         // ring mesh
+        ctx.strokeStyle=dk; ctx.lineWidth=1.5;
+        for(let yy=P0y+7; yy<P0y+PH; yy+=8) for(let xx=P0x+7; xx<P0x+PW; xx+=8){ ctx.beginPath(); ctx.arc(xx,yy,3,0,6.28); ctx.stroke(); }
+        break;
+      case 'gold': {                                        // shine + ruby gem
+        ctx.fillStyle='rgba(255,255,255,0.25)'; ctx.fillRect(P0x+4,P0y+2,6,PH-6);
+        const gx=cx, gy=P0y+PH*0.5, gr=6; ctx.fillStyle='#e63a5e';
+        ctx.beginPath(); ctx.moveTo(gx,gy-gr); ctx.lineTo(gx+gr,gy); ctx.lineTo(gx,gy+gr); ctx.lineTo(gx-gr,gy); ctx.closePath(); ctx.fill();
+        break;
+      }
+      case 'iron':                                          // seam + rivets
+        ctx.strokeStyle=dk; ctx.lineWidth=2;
+        ctx.beginPath(); ctx.moveTo(cx,P0y+3); ctx.lineTo(cx,P0y+PH-3); ctx.stroke();
+        ctx.fillStyle=lt;
+        [[P0x+7,P0y+7],[P0x+PW-7,P0y+7],[P0x+8,P0y+PH-8],[P0x+PW-8,P0y+PH-8]].forEach(([xx,yy])=>{ ctx.beginPath(); ctx.arc(xx,yy,2,0,6.28); ctx.fill(); });
+        break;
+    }
+    ctx.restore();
+  }
+
   // ---- head ----
   const headY = torsoY - 40;
   pxr(cx-20, headY, 40, 40, P.skin, 13);
