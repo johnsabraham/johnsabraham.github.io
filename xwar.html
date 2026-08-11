@@ -22,8 +22,7 @@
   }
   canvas {
     background:#000;
-    image-rendering:pixelated;
-    image-rendering:crisp-edges;
+    image-rendering:auto;   /* smooth upscale — softer, less pixelated look */
     box-shadow:0 0 0 4px #000, 0 0 0 8px #2a2140, 0 20px 60px rgba(0,0,0,.7);
     max-width:100vw; max-height:100vh;
   }
@@ -97,25 +96,27 @@ cv.addEventListener('mousemove', e=>{
   mouse.y = (e.clientY-r.top) * (H/r.height);
 });
 cv.addEventListener('mousedown', e=>{ mouse.click = true; ac(); });
+let wheel = 0;   // accumulated mouse-wheel delta, consumed each frame
+window.addEventListener('wheel', e=>{ wheel += e.deltaY; }, {passive:true});
 
 /* ---------- weapons ----------
    base:true  = choosable from the start.
    base:false = LOCKED; earned by winning rounds (see UNLOCK_ORDER). */
 const WEAPONS = [
-  { name:'FISTS',  short:'FISTS',  base:true, kind:'melee', style:null,     dmg:6,  reach:52, cd:26, active:6, kb:6,  color:null,     desc:'Fast & light. Spam it!' },
-  { name:'SWORD',  short:'SWORD',  base:true, kind:'melee', style:'sword',  dmg:11, reach:78, cd:40, active:7, kb:9,  color:'#cfd8e3', desc:'Long reach, solid hits.' },
-  { name:'HAMMER', short:'HAMMER', base:true, kind:'melee', style:'hammer', dmg:18, reach:66, cd:58, active:9, kb:16, color:'#8a5a2b', desc:'Slow but crushing.' },
-  { name:'DAGGER', short:'DAGGER', base:true, kind:'melee', style:'dagger', dmg:8,  reach:48, cd:18, active:5, kb:5,  color:'#e0e0e0', desc:'Blazing fast jabs.' },
+  { name:'FISTS',  short:'FISTS',  base:true, kind:'melee', style:null,     dmgType:'blunt', dmg:6,  reach:52, cd:26, active:6, kb:6,  color:null,     desc:'Fast & light. Spam it!' },
+  { name:'SWORD',  short:'SWORD',  base:true, kind:'melee', style:'sword',  dmgType:'blade', dmg:11, reach:78, cd:40, active:7, kb:9,  color:'#cfd8e3', desc:'Long reach, solid hits.' },
+  { name:'HAMMER', short:'HAMMER', base:true, kind:'melee', style:'hammer', dmgType:'blunt', dmg:18, reach:66, cd:58, active:9, kb:16, color:'#8a5a2b', desc:'Slow but crushing.' },
+  { name:'DAGGER', short:'DAGGER', base:true, kind:'melee', style:'dagger', dmgType:'pierce', dmg:8,  reach:48, cd:18, active:5, kb:5,  color:'#e0e0e0', desc:'Blazing fast jabs.' },
   // ----- unlockable -----
-  { name:'KUNAI',        short:'KUNAI',      base:false, kind:'ranged', style:'kunai', dmg:8,  reach:130, cd:24, active:5, kb:6,  color:'#cfd8e3', proj:'#dfe8f0', desc:'Thrown blades — hit from range!' },
-  { name:'KNIFE',        short:'KNIFE',      base:false, kind:'melee',  style:'knife', dmg:9,  reach:52,  cd:16, active:4, kb:5,  color:'#f0f0f0', desc:'Lightning-fast close jabs.' },
-  { name:'ELEMENT GUN',  short:'ELEM GUN',   base:false, kind:'ranged', style:'gun',   dmg:10, reach:150, cd:32, active:6, kb:7,  color:'#8a8f99', glow:'#5ad0ff', proj:'#5ad0ff', desc:'Fires energy bolts across the arena.' },
-  { name:'GRENADE',      short:'GRENADE',    base:false, kind:'throw',  style:'throw', dmg:16, reach:150, cd:72, active:6, kb:16, color:'#3a5a2a', glow:'#ffaa00', proj:'#4a6a2a', desc:'Lobbed bomb with a big blast!' },
-  { name:'LIGHT SABER',       short:'SABER',       base:false, kind:'melee', style:'saber', dmg:13, reach:88, cd:32, active:8, kb:10, color:'#d6faff', glow:'#00e5ff', desc:'Glowing blade, great reach.' },
-  { name:'FIRE LIGHT SABER',  short:'FIRE SABER',  base:false, kind:'melee', style:'saber', dmg:15, reach:88, cd:32, active:8, kb:11, color:'#ffe0a0', glow:'#ff6a00', desc:'Burning blade, extra power.' },
-  { name:'LAVA LIGHT SABER',  short:'LAVA SABER',  base:false, kind:'melee', style:'saber', dmg:17, reach:86, cd:36, active:9, kb:13, color:'#ffc08a', glow:'#ff2a00', desc:'Molten blade, huge damage.' },
-  { name:'WATER LIGHT SABER', short:'WATER SABER', base:false, kind:'melee', style:'saber', dmg:13, reach:92, cd:28, active:8, kb:9,  color:'#cdecff', glow:'#2a9fff', desc:'Cool blade, fast & long.' },
-  { name:'VINE WHIP',    short:'VINE WHIP',  base:false, kind:'melee', style:'whip', dmg:12, reach:106, cd:40, active:9, kb:9, color:'#4a9a3a', desc:'Spiked whip with crazy reach.' }
+  { name:'KUNAI',        short:'KUNAI',      base:false, kind:'ranged', style:'kunai', dmgType:'pierce', dmg:8,  reach:130, cd:24, active:5, kb:6,  color:'#cfd8e3', proj:'#dfe8f0', desc:'Thrown blades — hit from range!' },
+  { name:'KNIFE',        short:'KNIFE',      base:false, kind:'melee',  style:'knife', dmgType:'blade', dmg:9,  reach:52,  cd:16, active:4, kb:5,  color:'#f0f0f0', desc:'Lightning-fast close jabs.' },
+  { name:'ELEMENT GUN',  short:'ELEM GUN',   base:false, kind:'ranged', style:'gun',   dmgType:'energy', dmg:10, reach:150, cd:32, active:6, kb:7,  color:'#8a8f99', glow:'#5ad0ff', proj:'#5ad0ff', desc:'Fires energy bolts across the arena.' },
+  { name:'GRENADE',      short:'GRENADE',    base:false, kind:'throw',  style:'throw', dmgType:'explosive', dmg:16, reach:150, cd:72, active:6, kb:16, color:'#3a5a2a', glow:'#ffaa00', proj:'#4a6a2a', desc:'Lobbed bomb with a big blast!' },
+  { name:'LIGHT SABER',       short:'SABER',       base:false, kind:'melee', style:'saber', dmgType:'energy', dmg:13, reach:88, cd:32, active:8, kb:10, color:'#d6faff', glow:'#00e5ff', desc:'Glowing blade, great reach.' },
+  { name:'FIRE LIGHT SABER',  short:'FIRE SABER',  base:false, kind:'melee', style:'saber', dmgType:'energy', dmg:15, reach:88, cd:32, active:8, kb:11, color:'#ffe0a0', glow:'#ff6a00', desc:'Burning blade, extra power.' },
+  { name:'LAVA LIGHT SABER',  short:'LAVA SABER',  base:false, kind:'melee', style:'saber', dmgType:'energy', dmg:17, reach:86, cd:36, active:9, kb:13, color:'#ffc08a', glow:'#ff2a00', desc:'Molten blade, huge damage.' },
+  { name:'WATER LIGHT SABER', short:'WATER SABER', base:false, kind:'melee', style:'saber', dmgType:'energy', dmg:13, reach:92, cd:28, active:8, kb:9,  color:'#cdecff', glow:'#2a9fff', desc:'Cool blade, fast & long.' },
+  { name:'VINE WHIP',    short:'VINE WHIP',  base:false, kind:'melee', style:'whip', dmgType:'blade', dmg:12, reach:106, cd:40, active:9, kb:9, color:'#4a9a3a', desc:'Spiked whip with crazy reach.' }
 ];
 // order weapons are earned in, one per round won
 const UNLOCK_ORDER = ['KUNAI','KNIFE','ELEMENT GUN','GRENADE','LIGHT SABER',
@@ -157,13 +158,63 @@ function awardPotion(){
   return potionDef(key);
 }
 
+/* ---------- armor (earned by winning matches, weakest first) ----------
+   Layered defence: owned armors stack weakest->strongest; the weakest is
+   the active outer layer and absorbs hits until its durability breaks,
+   then the next layer takes over. `resist[type]` = fraction of damage that
+   still gets THROUGH this armor for that weapon damage type (lower = better). */
+const ARMORS = [
+  { key:'wood',    name:'WOOD',       short:'WOOD',    body:'#8a5a2b', trim:'#6b4420', style:'wood',    dura:40,
+    resist:{ blunt:0.85, blade:0.75, pierce:0.80, energy:0.95, explosive:0.90 } },
+  { key:'leather', name:'LEATHER',    short:'LEATHER', body:'#9a6b3a', trim:'#6f4a24', style:'leather', dura:55,
+    resist:{ blunt:0.80, blade:0.65, pierce:0.75, energy:0.70, explosive:0.85 } },
+  { key:'chain',   name:'CHAIN MAIL', short:'CHAIN',   body:'#9aa3b0', trim:'#6b7280', style:'chain',   dura:75,
+    resist:{ blunt:0.75, blade:0.45, pierce:0.70, energy:0.65, explosive:0.80 } },
+  { key:'gold',    name:'GOLD',       short:'GOLD',    body:'#ffd24a', trim:'#c79a1e', style:'gold',    dura:95,
+    resist:{ blunt:0.55, blade:0.50, pierce:0.55, energy:0.45, explosive:0.70 } },
+  { key:'iron',    name:'IRON',       short:'IRON',    body:'#c9d2dc', trim:'#8a94a0', style:'iron',    dura:130,
+    resist:{ blunt:0.45, blade:0.40, pierce:0.45, energy:0.50, explosive:0.60 } }
+];
+// award order = index order (wood first ... iron last)
+const ARMOR_ORDER = ARMORS.map(a=>a.key);
+let armorsUnlocked = new Set();          // which armor keys the player owns
+function armorDef(key){ return ARMORS.find(a=>a.key===key); }
+function ownedArmors(){ return ARMORS.filter(a=>armorsUnlocked.has(a.key)); } // weakest->strongest
+// the damage type this armor resists best / worst (lowest / highest "through" value)
+function armorBestWorst(a){
+  let best, worst, bv=2, wv=-1;
+  for(const t in a.resist){ const v=a.resist[t];
+    if(v<bv){ bv=v; best=t; } if(v>wv){ wv=v; worst=t; } }
+  return { best, worst };
+}
+// win a match -> earn the next armor in order; returns its def (or null if all owned)
+function awardArmor(){
+  for(const key of ARMOR_ORDER){
+    if(!armorsUnlocked.has(key)){ armorsUnlocked.add(key); saveState(); return armorDef(key); }
+  }
+  return null;
+}
+
 /* ---------- saved progress (browser localStorage) ---------- */
 const SAVE_KEY = 'xwar_save_v1';
 function saveState(){
   try{ localStorage.setItem(SAVE_KEY, JSON.stringify({
     unlocked:[...unlocked], weapon:playerWeapon, difficulty,
-    potions, weaponLevels, bonusHP, potionsUnlocked:[...potionsUnlocked]
+    potions, weaponLevels, bonusHP, potionsUnlocked:[...potionsUnlocked],
+    armors:[...armorsUnlocked]
   })); }catch(e){}
+}
+// wipe ALL saved progress back to a brand-new game
+function resetGame(){
+  try{ localStorage.removeItem(SAVE_KEY); }catch(e){}
+  unlocked = new Set(WEAPONS.filter(w=>w.base).map(w=>w.name));
+  potions = { enchant:0, health:0 };
+  weaponLevels = {};
+  bonusHP = 0;
+  potionsUnlocked = new Set();
+  armorsUnlocked = new Set();
+  playerWeapon = 0; weaponIndex = 0;
+  difficulty = 0; diffIndex = 0;
 }
 function loadState(){
   try{
@@ -176,6 +227,7 @@ function loadState(){
     if(s.weaponLevels && typeof s.weaponLevels==='object') weaponLevels = s.weaponLevels;
     if(typeof s.bonusHP==='number') bonusHP = Math.max(0, Math.min(HP_CAP, s.bonusHP));
     if(Array.isArray(s.potionsUnlocked)) s.potionsUnlocked.forEach(k=>potionsUnlocked.add(k));
+    if(Array.isArray(s.armors)) s.armors.forEach(k=>{ if(armorDef(k)) armorsUnlocked.add(k); });
   }catch(e){}
 }
 
@@ -204,12 +256,42 @@ function makeFighter(x, dir, isPlayer){
     weapon: wpn,
     walk:0, wins:0, bob:Math.random()*6.28, dmgMult:1,
     enchant: isPlayer ? enchantMult(wpn) : 1,  // player weapon damage bonus
+    armorStack: isPlayer ? ownedArmors().map(a=>({def:a, dura:a.dura, max:a.dura})) : [],
+    armorIdx: 0, armorBreakFx: 0,              // layered armor: active layer + shatter flash
     ai:{ think:0, action:'idle' }
   };
 }
+// rebuild the layered armor stack to full (called each round)
+function refillArmor(f){
+  f.armorStack = f.isPlayer ? ownedArmors().map(a=>({def:a, dura:a.dura, max:a.dura})) : [];
+  f.armorIdx = 0; f.armorBreakFx = 0;
+}
+// active (first un-broken) armor layer, or null
+function activeArmor(f){
+  if(!f.armorStack) return null;
+  while(f.armorIdx < f.armorStack.length && f.armorStack[f.armorIdx].dura<=0) f.armorIdx++;
+  return f.armorIdx < f.armorStack.length ? f.armorStack[f.armorIdx] : null;
+}
+// reduce an incoming hit by the active armor layer; chip durability; cascade on break
+function applyArmor(f, incoming, type){
+  const layer = activeArmor(f);
+  if(!layer) return incoming;                       // no armor / all broken
+  const through = (layer.def.resist[type] != null) ? layer.def.resist[type] : 0.8;
+  const dealt = incoming * through;
+  layer.dura -= incoming;                           // the full hit stresses the armor
+  if(layer.dura <= 0){
+    layer.dura = 0;
+    f.armorBreakFx = 20;
+    spawnParticles(f.x, f.y-92, layer.def.body, 16);
+    spawnParticles(f.x, f.y-92, '#ffffff', 6);
+    SFX.block();                                    // crack
+    f.armorIdx++;                                   // next layer takes over
+  }
+  return dealt;
+}
 
 /* ---------- game state ---------- */
-let scene = 'home';        // home | weapons | potions | difficulty | help | fight | roundover | matchover | quit
+let scene = 'home';        // home | weapons | armor | potions | difficulty | help | fight | roundover | matchover | reset | quit
 let playerWeapon = 0;
 let menuIndex = 0;
 let weaponIndex = 0;
@@ -218,6 +300,7 @@ let particles = [];
 let projectiles = [];
 let unlockNotice = null;   // name of weapon just unlocked, shown between rounds
 let potionNotice = null;   // potion earned this match, shown on match-over
+let armorNotice = null;    // armor earned this match, shown on match-over
 let shake = 0;
 let round = 1;
 let roundBanner = 0, bannerText = '';
@@ -226,8 +309,11 @@ let matchResult = '';
 let demoTimer = 0;
 let diffIndex = 0;
 let potionIndex = 0;
+let armorIndex = 0;
 let potionMsg = '';        // transient feedback on the potions screen
-const MENU = ['PLAY','WEAPONS','POTIONS','DIFFICULTY','HELP','RESTART','QUIT'];
+let helpScroll = 0;        // vertical scroll offset on the HELP screen
+let resetSel = 0;          // reset confirm: 0 = NO (cancel), 1 = YES (wipe)
+const MENU = ['PLAY','WEAPONS','ARMOR','POTIONS','DIFFICULTY','HELP','RESET','QUIT'];
 
 loadState();   // restore unlocked weapons + last weapon/difficulty
 
@@ -245,7 +331,7 @@ function startMatch(){
   enemy.weapon = (difficulty===0) ? WEAPONS[playerWeapon] : pickEnemyWeapon();
   enemy.dmgMult = DIFFICULTIES[difficulty].dmg;
   round = 1; player.wins = 0; enemy.wins = 0;
-  particles = []; projectiles = []; unlockNotice = null; potionNotice = null;
+  particles = []; projectiles = []; unlockNotice = null; potionNotice = null; armorNotice = null;
   scene = 'fight';
   showBanner('ROUND 1 — FIGHT!');
 }
@@ -260,6 +346,7 @@ function nextRound(){
   player.vx=player.vy=0; enemy.vx=enemy.vy=0;
   player.attacking=enemy.attacking=false;
   player.hitstun=enemy.hitstun=0;
+  refillArmor(player);                 // armor restored to full each round
   particles = []; projectiles = [];
   scene = 'fight';
   showBanner('ROUND '+round+' — FIGHT!');
@@ -316,6 +403,7 @@ function updateFighter(f, foe){
   if(f.hitstun>0) f.hitstun--;
   if(f.atkCd>0) f.atkCd--;
   if(f.flash>0) f.flash--;
+  if(f.armorBreakFx>0) f.armorBreakFx--;
 
   // attack lifecycle
   if(f.attacking){
@@ -332,9 +420,8 @@ function updateFighter(f, foe){
       // melee hit check
       if(overlap(attackBox(f), bodyBox(foe)) && foe.hitstun<=0){
         f.hasHit = true;
-        const facingCorrect = (foe.dir>0 && f.x<foe.x) || (foe.dir<0 && f.x>foe.x);
-        if(foe.blocking && foe.onGround && facingCorrect){
-          // blocked
+        if(foe.blocking && foe.onGround){
+          // fully blocked — a guarded hit deals NO damage
           foe.vx = f.dir*4;
           foe.flash = 4;
           shake = Math.max(shake,4);
@@ -342,7 +429,7 @@ function updateFighter(f, foe){
           SFX.block();
         } else {
           let dmg = w.dmg * (f.dmgMult||1) * (f.enchant||1);
-          if(foe.blocking) dmg *= 0.5;
+          if(foe.isPlayer) dmg = applyArmor(foe, dmg, w.dmgType);   // armor soaks player hits
           foe.hp -= dmg;
           foe.hitstun = 16;
           foe.flash = 6;
@@ -435,7 +522,8 @@ function controlAI(f, foe){
 
 /* ---------- BLOCKY CHARACTER ART ---------- */
 function drawFighter(f, palette, t){
-  const px = (bx,by,bw,bh,c)=>{ ctx.fillStyle=c; ctx.fillRect(Math.round(bx),Math.round(by),bw,bh); };
+  const px  = (bx,by,bw,bh,c)=>{ ctx.fillStyle=c; ctx.fillRect(Math.round(bx),Math.round(by),bw,bh); };
+  const pxr = (bx,by,bw,bh,c,r)=>{ fillRR(bx,by,bw,bh,r||6,c); };   // rounded, softer pieces
   const P = palette;
   const cx = f.x;             // center x (feet)
   const base = f.y;          // feet baseline
@@ -451,27 +539,27 @@ function drawFighter(f, palette, t){
   const legY = base - 42;
   const l1 = f.onGround ? legSwing : 6;
   const l2 = f.onGround ? -legSwing : -6;
-  px(cx-18, legY, 14, 42+ (l1<0?l1:0), P.pants);
-  px(cx+4,  legY, 14, 42+ (l2<0?l2:0), P.pants);
+  pxr(cx-18, legY, 14, 42+ (l1<0?l1:0), P.pants, 6);
+  pxr(cx+4,  legY, 14, 42+ (l2<0?l2:0), P.pants, 6);
   // feet
-  px(cx-20, base-6, 16, 8, P.shoe);
-  px(cx+4,  base-6, 16, 8, P.shoe);
+  pxr(cx-20, base-6, 16, 8, P.shoe, 4);
+  pxr(cx+4,  base-6, 16, 8, P.shoe, 4);
 
   // ---- torso ----
   const torsoY = base - 100 + idle;
-  px(cx-24, torsoY, 48, 58, P.shirt);
+  pxr(cx-24, torsoY, 48, 58, P.shirt, 12);
   // belt
-  px(cx-24, torsoY+50, 48, 8, P.belt);
+  pxr(cx-24, torsoY+50, 48, 8, P.belt, 4);
   // chest emblem
-  px(cx-6, torsoY+14, 12, 14, P.emblem);
+  pxr(cx-6, torsoY+14, 12, 14, P.emblem, 3);
 
   // ---- head ----
   const headY = torsoY - 40;
-  px(cx-20, headY, 40, 40, P.skin);
+  pxr(cx-20, headY, 40, 40, P.skin, 13);
   // hair
-  px(cx-20, headY, 40, 12, P.hair);
-  px(cx-20, headY, 8, 24, P.hair);
-  px(cx+12, headY, 8, 24, P.hair);
+  pxr(cx-20, headY, 40, 14, P.hair, 8);
+  pxr(cx-20, headY+2, 8, 24, P.hair, 4);
+  pxr(cx+12, headY+2, 8, 24, P.hair, 4);
   // eyes (face forward-ish based on dir)
   const ex = f.dir>0 ? 4 : -14;
   px(cx+ex, headY+18, 6, 8, '#fff');
@@ -556,39 +644,56 @@ function drawFighter(f, palette, t){
     ctx.globalAlpha = 1;
   }
 
+  // armor-break: expanding white ring around the body
+  if(f.armorBreakFx>0){
+    ctx.save();
+    ctx.globalAlpha = (f.armorBreakFx/20)*0.6;
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 3;
+    const rad = 34 + (20-f.armorBreakFx)*3.5;
+    ctx.beginPath(); ctx.arc(cx, base-90, rad, 0, Math.PI*2); ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
   ctx.restore();
 }
 
 const PAL_P = { skin:'#e8b58a', hair:'#3b2a1a', shirt:'#2f6bd6', pants:'#22314f', shoe:'#111', belt:'#12233f', emblem:'#ffd23f' };
 const PAL_E = { skin:'#c98f6b', hair:'#111', shirt:'#c0392b', pants:'#3a1414', shoe:'#111', belt:'#2a0d0d', emblem:'#222' };
 
+/* ---------- rounded-rect helpers (soften the blocky UI) ---------- */
+function rrpath(x,y,w,h,r){
+  r = Math.min(r, w/2, h/2);
+  ctx.beginPath();
+  if(ctx.roundRect){ ctx.roundRect(x,y,w,h,r); return; }
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);     ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+function fillRR(x,y,w,h,r,col){ ctx.fillStyle=col; rrpath(x,y,w,h,r); ctx.fill(); }
+
 /* ---------- scenery ---------- */
-// blocky, pixel-art sun: fills square "pixels" that fall inside a circle
-function drawPixelSun(cx, cy, r, px){
-  // faint pixel halo just outside the disc
-  ctx.fillStyle='rgba(255,214,107,.20)';
-  for(let y=-r-px;y<r+px;y+=px){
-    for(let x=-r-px;x<r+px;x+=px){
-      const dx=x+px/2, dy=y+px/2, d=dx*dx+dy*dy;
-      if(d>r*r && d<=(r+px)*(r+px)) ctx.fillRect(Math.round(cx+x),Math.round(cy+y),px,px);
-    }
-  }
-  // the disc itself
-  ctx.fillStyle='#ffd66b';
-  for(let y=-r;y<r;y+=px){
-    for(let x=-r;x<r;x+=px){
-      const dx=x+px/2, dy=y+px/2;
-      if(dx*dx+dy*dy <= r*r) ctx.fillRect(Math.round(cx+x),Math.round(cy+y),px,px);
-    }
-  }
+// smooth, softly-glowing sun (radial gradients — no hard pixels)
+function drawSun(cx, cy, r){
+  ctx.save();
+  const glow = ctx.createRadialGradient(cx,cy,r*0.3, cx,cy,r*2.4);
+  glow.addColorStop(0,'rgba(255,224,140,0.55)');
+  glow.addColorStop(0.4,'rgba(255,214,107,0.18)');
+  glow.addColorStop(1,'rgba(255,214,107,0)');
+  ctx.fillStyle=glow; ctx.beginPath(); ctx.arc(cx,cy,r*2.4,0,Math.PI*2); ctx.fill();
+  const disc = ctx.createRadialGradient(cx-r*0.35,cy-r*0.35,r*0.2, cx,cy,r);
+  disc.addColorStop(0,'#ffedb0'); disc.addColorStop(1,'#ffcf5f');
+  ctx.fillStyle=disc; ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
+  ctx.restore();
 }
 function drawArena(){
   // sky
   const g = ctx.createLinearGradient(0,0,0,H);
   g.addColorStop(0,'#3a2b6b'); g.addColorStop(0.6,'#5a3a7a'); g.addColorStop(1,'#2a1b3a');
   ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
-  // sun — chunky pixelated circle
-  drawPixelSun(735, 92, 40, 8);
+  // sun — smooth glowing disc
+  drawSun(735, 92, 40);
   // distant blocky mountains
   ctx.fillStyle='#3d2f5e';
   for(let i=0;i<8;i++){ const bx=i*130-30; ctx.fillRect(bx,GROUND-120,110,120); ctx.fillRect(bx+20,GROUND-160,70,40); }
@@ -604,22 +709,140 @@ function drawArena(){
 
 function drawHealthBar(f, x, align){
   const bw = 340, bh = 26;
-  ctx.fillStyle='#000'; ctx.fillRect(x-3,27,bw+6,bh+6);
-  ctx.fillStyle='#3a1414'; ctx.fillRect(x,30,bw,bh);
+  fillRR(x-3,27,bw+6,bh+6, 8, '#000');
+  fillRR(x,30,bw,bh, 6, '#3a1414');
   const pct = Math.max(0,f.hp)/(f.maxHp||MAX_HP);
   const col = pct>0.5 ? '#4ce04c' : pct>0.25 ? '#ffcf3f' : '#ff4c4c';
   const ww = bw*pct;
+  ctx.save();
+  rrpath(x,30,bw,bh,6); ctx.clip();               // keep the fill inside the rounded track
   ctx.fillStyle = col;
   if(align==='right') ctx.fillRect(x+bw-ww,30,ww,bh);
   else ctx.fillRect(x,30,ww,bh);
   // segment ticks
   ctx.fillStyle='rgba(0,0,0,.3)';
   for(let i=1;i<10;i++) ctx.fillRect(x+i*bw/10,30,2,bh);
+  ctx.restore();
   // win pips
   ctx.fillStyle='#ffd23f';
   for(let i=0;i<f.wins;i++){
     const pxp = align==='right' ? x+bw-14-i*20 : x+4+i*20;
     ctx.fillRect(pxp,62,14,14);
+  }
+}
+
+/* ---------- armor icon + HUD ---------- */
+// lighten (amt>0) / darken (amt<0) a #rrggbb colour
+function shade(hex, amt){
+  const n=parseInt(hex.slice(1),16);
+  let r=(n>>16)&255, g=(n>>8)&255, b=n&255;
+  if(amt<0){ const f=1+amt; r*=f; g*=f; b*=f; }
+  else { r+=(255-r)*amt; g+=(255-g)*amt; b+=(255-b)*amt; }
+  return 'rgb('+(r|0)+','+(g|0)+','+(b|0)+')';
+}
+function shieldPath(px,py,pw,ph){
+  const c=px+pw/2;
+  ctx.beginPath();
+  ctx.moveTo(px, py+ph*0.16); ctx.lineTo(px, py+ph*0.55);
+  ctx.quadraticCurveTo(px, py+ph*0.92, c, py+ph);
+  ctx.quadraticCurveTo(px+pw, py+ph*0.92, px+pw, py+ph*0.55);
+  ctx.lineTo(px+pw, py+ph*0.16);
+  ctx.quadraticCurveTo(px+pw, py, c, py);
+  ctx.quadraticCurveTo(px, py, px, py+ph*0.16);
+  ctx.closePath();
+}
+// a shield with a material-specific texture; opts.broken = cracked/greyed
+function drawArmorIcon(x, y, s, armor, opts){
+  opts = opts||{};
+  const broken = opts.broken;
+  const body = broken ? '#3a3550' : armor.body;
+  const trim = broken ? '#2a2540' : armor.trim;
+  const w=s, h=s*1.15, cx=x+w/2;
+  ctx.save();
+  shieldPath(x,y,w,h); ctx.fillStyle=body; ctx.fill();
+
+  if(!broken){
+    ctx.save(); shieldPath(x,y,w,h); ctx.clip();     // keep texture inside the shield
+    const dk=shade(body,-0.28), lt=shade(body,0.30);
+    switch(armor.style){
+      case 'wood': {                                  // vertical planks + grain
+        ctx.strokeStyle=dk; ctx.lineWidth=Math.max(1,s*0.05);
+        for(let i=1;i<3;i++){ const px=x+w*i/3; ctx.beginPath(); ctx.moveTo(px,y-2); ctx.lineTo(px,y+h+2); ctx.stroke(); }
+        ctx.strokeStyle=lt; ctx.lineWidth=Math.max(1,s*0.03);
+        ctx.beginPath(); ctx.moveTo(x+w*0.17,y+h*0.28); ctx.lineTo(x+w*0.17,y+h*0.66);
+                         ctx.moveTo(x+w*0.83,y+h*0.30); ctx.lineTo(x+w*0.83,y+h*0.62); ctx.stroke();
+        break;
+      }
+      case 'leather': {                               // dashed stitching inset
+        ctx.strokeStyle=lt; ctx.lineWidth=Math.max(1,s*0.045);
+        ctx.setLineDash([Math.max(2,s*0.13), Math.max(1.5,s*0.09)]);
+        const in1=s*0.16; shieldPath(x+in1, y+in1, w-2*in1, h-2*in1); ctx.stroke();
+        ctx.setLineDash([]);
+        break;
+      }
+      case 'chain': {                                 // grid of interlocking rings
+        ctx.strokeStyle=dk; ctx.lineWidth=Math.max(1,s*0.05);
+        const r=s*0.13, step=r*1.7;
+        for(let row=0, yy=y+step*0.9; yy<y+h; yy+=step, row++){
+          for(let xx=x+step*(row%2?0.9:0.4); xx<x+w; xx+=step){
+            ctx.beginPath(); ctx.arc(xx, yy, r, 0, Math.PI*2); ctx.stroke();
+          }
+        }
+        break;
+      }
+      case 'gold': {                                  // shine streak + center gem
+        ctx.fillStyle='rgba(255,255,255,0.28)';
+        ctx.beginPath(); ctx.moveTo(x+w*0.18,y); ctx.lineTo(x+w*0.44,y); ctx.lineTo(x+w*0.16,y+h*0.55); ctx.closePath(); ctx.fill();
+        const gx=cx, gy=y+h*0.44, gr=s*0.17;          // ruby gem
+        ctx.fillStyle='#e63a5e';
+        ctx.beginPath(); ctx.moveTo(gx,gy-gr); ctx.lineTo(gx+gr,gy); ctx.lineTo(gx,gy+gr); ctx.lineTo(gx-gr,gy); ctx.closePath(); ctx.fill();
+        ctx.fillStyle='rgba(255,255,255,0.6)'; ctx.beginPath(); ctx.arc(gx-gr*0.3, gy-gr*0.3, gr*0.22, 0, Math.PI*2); ctx.fill();
+        break;
+      }
+      case 'iron': {                                  // center seam + corner rivets
+        ctx.strokeStyle=dk; ctx.lineWidth=Math.max(1,s*0.055);
+        ctx.beginPath(); ctx.moveTo(cx,y+h*0.08); ctx.lineTo(cx,y+h*0.86); ctx.stroke();
+        ctx.fillStyle=lt; const rv=Math.max(1.4,s*0.07);
+        [[0.26,0.24],[0.74,0.24],[0.29,0.6],[0.71,0.6]].forEach(([fx,fy])=>{
+          ctx.beginPath(); ctx.arc(x+w*fx, y+h*fy, rv, 0, Math.PI*2); ctx.fill();
+        });
+        break;
+      }
+    }
+    ctx.restore();
+  }
+
+  shieldPath(x,y,w,h); ctx.lineWidth=Math.max(2,s*0.09); ctx.strokeStyle=trim; ctx.stroke();
+  if(broken){
+    ctx.strokeStyle='#12101f'; ctx.lineWidth=2; ctx.beginPath();
+    ctx.moveTo(x+w*0.32,y+h*0.18); ctx.lineTo(x+w*0.58,y+h*0.52); ctx.lineTo(x+w*0.4,y+h*0.82); ctx.stroke();
+  }
+  // rank number badge in the centre (1 = weakest ... 5 = strongest)
+  const num = ARMORS.indexOf(armor)+1, nyc = y+h*0.46;
+  ctx.beginPath(); ctx.arc(cx, nyc, s*0.3, 0, Math.PI*2);
+  ctx.fillStyle='rgba(15,12,26,0.55)'; ctx.fill();
+  ctx.font='bold '+Math.round(s*0.46)+'px "Courier New",monospace';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillStyle = broken ? '#9a90b0' : '#fff8e0';
+  ctx.fillText(num, cx, nyc+s*0.02);
+  ctx.restore();
+}
+// row of armor layers under the player's health bar
+function drawArmorHUD(f){
+  const st=f.armorStack; if(!st||!st.length) return;
+  const s=20, gap=22, y=128, x0=30;
+  pixelText('ARMOR', x0+16, y-10, 10, '#9a8fc0', null);
+  for(let i=0;i<st.length;i++){
+    const layer=st[i], x=x0+i*(s+gap);
+    const active=(i===f.armorIdx && layer.dura>0), broken=layer.dura<=0;
+    if(active){ ctx.save(); ctx.shadowColor='#ffd23f'; ctx.shadowBlur=12; drawArmorIcon(x,y,s,layer.def,{broken}); ctx.restore(); }
+    else drawArmorIcon(x,y,s,layer.def,{broken});
+    const by=y+s*1.15+4, bw=s;
+    fillRR(x,by,bw,3,1,'#000');
+    if(!broken){ const pct=layer.dura/layer.max; fillRR(x,by,bw*pct,3,1, pct>0.5?'#4ce04c':pct>0.25?'#ffcf3f':'#ff4c4c'); }
+    // armor type name underneath
+    pixelText(layer.def.short||layer.def.name, x+s/2, by+12, 9,
+              active?'#ffd23f':(broken?'#6a5f8a':'#c9b8ff'), null);
   }
 }
 
@@ -631,6 +854,29 @@ function pixelText(txt, cx, cy, size, color, glow){
   ctx.fillStyle = color;
   ctx.fillText(txt, cx, cy);
   ctx.restore();
+}
+
+/* ---------- home / back button (menu sub-screens + in-fight) ---------- */
+function homeBtnRect(){ return { x:18, y:16, w:118, h:38 }; }         // menu screens: top-left
+function fightHomeBtnRect(){ return { x:16, y:H-40, w:104, h:30 }; }  // fight: bottom-left (over the dirt)
+function inRect(r){ return mouse.x>r.x && mouse.x<r.x+r.w && mouse.y>r.y && mouse.y<r.y+r.h; }
+function drawHomeButton(r){
+  r = r || homeBtnRect();
+  const hot = inRect(r);
+  fillRR(r.x-3,r.y-3,r.w+6,r.h+6, 12, hot ? '#ffd23f' : '#2a2140');
+  fillRR(r.x,r.y,r.w,r.h, 9, '#141024');
+  // little house icon
+  const hx=r.x+22, hy=r.y+r.h/2, c = hot?'#ffd23f':'#c9b8ff';
+  ctx.fillStyle=c;
+  ctx.beginPath(); ctx.moveTo(hx-10,hy-1); ctx.lineTo(hx,hy-11); ctx.lineTo(hx+10,hy-1); ctx.closePath(); ctx.fill();
+  ctx.fillRect(hx-7, hy-1, 14, 11);
+  ctx.fillStyle='#141024'; ctx.fillRect(hx-2, hy+3, 5, 8);          // door
+  pixelText('HOME', r.x+r.w/2+15, hy, 15, c, hot?'#ff8a00':null);
+}
+// returns true (and beeps) when the given home button is clicked this frame
+function homeButtonClicked(r){
+  if(mouse.click && inRect(r||homeBtnRect())){ SFX.select(); return true; }
+  return false;
 }
 
 /* ---------- particles ---------- */
@@ -657,19 +903,20 @@ function spawnProjectile(f){
   projectiles.push({
     x: f.x + f.dir*30, y: f.y-92, dir: f.dir,
     vx: f.dir*(w.kind==='throw'?7:11), vy: w.kind==='throw'?-8:0,
-    dmg: w.dmg*(f.dmgMult||1)*(f.enchant||1), kb: w.kb,
+    dmg: w.dmg*(f.dmgMult||1)*(f.enchant||1), kb: w.kb, type: w.dmgType,
     color: w.proj||w.color||'#fff', glow: w.glow, kind: w.kind, style: w.style,
     owner: f, life: w.kind==='throw'?140:80
   });
   SFX.swing();
 }
-function damageFrom(foe, dmg, kb, dir, blockable){
-  const facingCorrect = (foe.dir>0 && dir<0) || (foe.dir<0 && dir>0);
-  if(blockable && foe.blocking && foe.onGround && facingCorrect){
+function damageFrom(foe, dmg, kb, dir, blockable, type){
+  if(blockable && foe.blocking && foe.onGround){
+    // fully blocked — no damage from a blockable shot
     foe.vx = dir*4; foe.flash = 4; shake = Math.max(shake,4);
     spawnParticles(foe.x - dir*18, foe.y-90, '#8fd0ff', 8); SFX.block(); return;
   }
-  let d = dmg * (foe.blocking?0.5:1);
+  let d = dmg;   // grenade blasts (non-blockable) hit full even through a block
+  if(foe.isPlayer) d = applyArmor(foe, d, type||'blade');   // armor soaks player hits
   foe.hp -= d; if(foe.hp<0) foe.hp=0;
   foe.hitstun = 15; foe.flash = 6;
   foe.vx = dir*kb*1.7; foe.vy = -4; foe.x += dir*10;   // strong, instant recoil
@@ -687,7 +934,7 @@ function explode(p){
     if(!f || f===p.owner || f.hitstun>0) continue;
     const b = bodyBox(f), cx = b.x+b.w/2, cy = b.y+b.h/2;
     if(Math.hypot(cx-p.x, cy-p.y) < 85){
-      damageFrom(f, p.dmg, p.kb, cx<p.x?-1:1, false);
+      damageFrom(f, p.dmg, p.kb, cx<p.x?-1:1, false, 'explosive');
     }
   }
 }
@@ -705,7 +952,7 @@ function updateProjectiles(){
       const b = bodyBox(foe);
       if(p.x>b.x-4 && p.x<b.x+b.w+4 && p.y>b.y-4 && p.y<b.y+b.h+4){
         if(p.kind==='throw') explode(p);
-        else damageFrom(foe, p.dmg, p.kb, p.dir, true);
+        else damageFrom(foe, p.dmg, p.kb, p.dir, true, p.type);
         projectiles.splice(i,1); continue;
       }
     }
@@ -777,7 +1024,7 @@ function updateHome(){
   });
 }
 function menuRects(){
-  const items=[]; const startY=196, sp=34, h=30;
+  const items=[]; const startY=190, sp=32, h=25;   // sp-h = gap between items
   for(let i=0;i<MENU.length;i++) items.push({x:W/2-140,y:startY+i*sp,w:280,h:h});
   return items;
 }
@@ -786,10 +1033,11 @@ function chooseMenu(i){
   const item = MENU[i];
   if(item==='PLAY') startMatch();
   else if(item==='WEAPONS'){ scene='weapons'; weaponIndex=playerWeapon; }
+  else if(item==='ARMOR'){ scene='armor'; armorIndex=0; }
   else if(item==='POTIONS'){ scene='potions'; potionIndex=0; potionMsg=''; }
   else if(item==='DIFFICULTY'){ scene='difficulty'; diffIndex=difficulty; }
-  else if(item==='HELP'){ scene='help'; }
-  else if(item==='RESTART'){ playerWeapon=0; difficulty=0; weaponIndex=0; menuIndex=0; saveState(); showBanner(''); scene='home'; }
+  else if(item==='HELP'){ scene='help'; helpScroll=0; }
+  else if(item==='RESET'){ scene='reset'; resetSel=0; }
   else if(item==='QUIT'){ scene='quit'; }
 }
 function drawHome(){
@@ -806,18 +1054,19 @@ function drawHome(){
   ctx.restore();
   pixelText('BLOCKY BATTLE ARENA', W/2, 172, 22, '#c9b8ff', null);
 
-  // menu
+  // menu — draw the selected item LAST so its highlight border isn't
+  // clipped by the next item's frame overlapping it.
   const items = menuRects();
-  items.forEach((r,i)=>{
+  const drawMenuItem = (r,i)=>{
     const sel = i===menuIndex;
-    ctx.fillStyle = sel ? '#ffd23f' : '#1c1630';
-    ctx.fillRect(r.x-4,r.y-4,r.w+8,r.h+8);
-    ctx.fillStyle = sel ? '#2a2140' : '#0d0b14';
-    ctx.fillRect(r.x,r.y,r.w,r.h);
+    fillRR(r.x-4,r.y-4,r.w+8,r.h+8, 12, sel ? '#ffd23f' : '#1c1630');
+    fillRR(r.x,r.y,r.w,r.h, 9, sel ? '#2a2140' : '#0d0b14');
     pixelText(MENU[i], W/2, r.y+r.h/2, 22, sel?'#ffd23f':'#9a8fc0', sel?'#ff8a00':null);
     if(sel){ pixelText('>', r.x-24, r.y+r.h/2, 22, '#ffd23f', '#ff8a00');
              pixelText('<', r.x+r.w+24, r.y+r.h/2, 22, '#ffd23f', '#ff8a00'); }
-  });
+  };
+  items.forEach((r,i)=>{ if(i!==menuIndex) drawMenuItem(r,i); });
+  drawMenuItem(items[menuIndex], menuIndex);
 }
 
 /* ---------- WEAPONS SCREEN (grid + detail) ---------- */
@@ -837,6 +1086,7 @@ function equipWeapon(i){
   else SFX.block();  // locked — buzz
 }
 function updateWeapons(){
+  if(homeButtonClicked()){ scene='home'; menuIndex=0; return; }
   if(pressed['ArrowRight']){ weaponIndex=Math.min(WEAPONS.length-1, weaponIndex+1); SFX.select(); }
   if(pressed['ArrowLeft']){  weaponIndex=Math.max(0, weaponIndex-1); SFX.select(); }
   if(pressed['ArrowDown'] && weaponIndex+WCOLS<WEAPONS.length){ weaponIndex+=WCOLS; SFX.select(); }
@@ -855,13 +1105,12 @@ function drawWeapons(){
   ctx.fillStyle='rgba(13,11,20,.78)'; ctx.fillRect(0,0,W,H);
   pixelText('WEAPONS', W/2, 40, 34, '#ffd23f', '#ff8a00');
   pixelText('UNLOCKED '+unlocked.size+'/'+WEAPONS.length, W-110, 40, 14, '#7fe07f', null);
+  drawHomeButton();
 
   weaponRects().forEach((r,i)=>{
     const w = WEAPONS[i], on = weaponUnlocked(w), sel = i===weaponIndex;
-    ctx.fillStyle = sel ? '#ffd23f' : (on?'#3a3358':'#241f36');
-    ctx.fillRect(r.x-3,r.y-3,r.w+6,r.h+6);
-    ctx.fillStyle = on ? '#141024' : '#0f0c1a';
-    ctx.fillRect(r.x,r.y,r.w,r.h);
+    fillRR(r.x-3,r.y-3,r.w+6,r.h+6, 10, sel ? '#ffd23f' : (on?'#3a3358':'#241f36'));
+    fillRR(r.x,r.y,r.w,r.h, 8, on ? '#141024' : '#0f0c1a');
     if(on){
       pixelText(w.short, r.x+r.w/2, r.y+20, 14, sel?'#ffd23f':'#fff', null);
       const el = enchantLevel(w);
@@ -899,8 +1148,6 @@ function drawWeapons(){
   stat('PWR', (w.dmg*enchantMult(w))/18, 520, py+22, 300, '#ff5a5a');
   stat('SPD', 1-(w.cd-16)/56,    520, py+54, 300, '#5ad0ff');
   stat('RCH', (w.reach-46)/64,   520, py+86, 300, '#7fe07f');
-
-  pixelText('↑ ↓ ← →  BROWSE      ENTER  EQUIP      ESC  BACK', W/2, H-16, 15, '#c9b8ff', null);
 }
 function stat(label,val,x,y,w,color){
   val=Math.max(0.05,Math.min(1,val));
@@ -922,6 +1169,7 @@ function wrapText(t,cx,cy,maxw,lh){
 
 /* ---------- DIFFICULTY SCREEN ---------- */
 function updateDifficulty(){
+  if(homeButtonClicked()){ scene='home'; menuIndex=0; return; }
   if(pressed['ArrowLeft']){ diffIndex=(diffIndex+DIFFICULTIES.length-1)%DIFFICULTIES.length; SFX.select(); }
   if(pressed['ArrowRight']){ diffIndex=(diffIndex+1)%DIFFICULTIES.length; SFX.select(); }
   if(pressed['Enter']||pressed['Space']){ difficulty=diffIndex; SFX.win(); scene='home'; menuIndex=0; }
@@ -945,14 +1193,13 @@ function drawDifficulty(){
   drawArena();
   ctx.fillStyle='rgba(13,11,20,.72)'; ctx.fillRect(0,0,W,H);
   pixelText('SELECT DIFFICULTY', W/2, 86, 40, '#ffd23f', '#ff8a00');
+  drawHomeButton();
   const cards = diffRects();
   cards.forEach((r,i)=>{
     const d = DIFFICULTIES[i];
     const sel = i===diffIndex;
-    ctx.fillStyle = sel ? d.color : '#2a2140';
-    ctx.fillRect(r.x-4,r.y-4,r.w+8,r.h+8);
-    ctx.fillStyle = '#141024';
-    ctx.fillRect(r.x,r.y,r.w,r.h);
+    fillRR(r.x-4,r.y-4,r.w+8,r.h+8, 12, sel ? d.color : '#2a2140');
+    fillRR(r.x,r.y,r.w,r.h, 9, '#141024');
     pixelText(d.name, r.x+r.w/2, r.y+34, 22, sel?d.color:'#fff', null);
     // CPU rating bars
     stat('SPEED',  d.move/3.7,        r.x+20, r.y+70,  r.w-40, '#5ad0ff');
@@ -964,7 +1211,6 @@ function drawDifficulty(){
     ctx.restore();
     if(i===difficulty){ pixelText('SELECTED', r.x+r.w/2, r.y-18, 12, d.color, null); }
   });
-  pixelText('← →  BROWSE      ENTER  SELECT      ↓  BACK', W/2, H-56, 18, '#c9b8ff', null);
 }
 
 /* ---------- POTIONS SCREEN ---------- */
@@ -1015,6 +1261,7 @@ function usePotion(key){
   }
 }
 function updatePotions(){
+  if(homeButtonClicked()){ scene='home'; menuIndex=0; return; }
   if(pressed['ArrowLeft']){ potionIndex=(potionIndex+POTIONS.length-1)%POTIONS.length; potionMsg=''; SFX.select(); }
   if(pressed['ArrowRight']){ potionIndex=(potionIndex+1)%POTIONS.length; potionMsg=''; SFX.select(); }
   if(pressed['Enter']||pressed['Space']){ usePotion(POTIONS[potionIndex].key); }
@@ -1031,11 +1278,12 @@ function drawPotions(){
   ctx.fillStyle='rgba(13,11,20,.8)'; ctx.fillRect(0,0,W,H);
   pixelText('POTIONS', W/2, 62, 40, '#ffd23f', '#ff8a00');
   pixelText('EARN THEM BY WINNING MATCHES', W/2, 100, 15, '#c9b8ff', null);
+  drawHomeButton();
 
   potionRects().forEach((r,i)=>{
     const p = POTIONS[i], on = potionsUnlocked.has(p.key), sel = i===potionIndex;
-    ctx.fillStyle = sel ? p.glow : '#2a2140'; ctx.fillRect(r.x-4,r.y-4,r.w+8,r.h+8);
-    ctx.fillStyle = '#141024'; ctx.fillRect(r.x,r.y,r.w,r.h);
+    fillRR(r.x-4,r.y-4,r.w+8,r.h+8, 14, sel ? p.glow : '#2a2140');
+    fillRR(r.x,r.y,r.w,r.h, 10, '#141024');
     const cx = r.x+r.w/2;
     drawPotionBottle(cx, r.y+90, p.icon, p.glow, !on);
     if(on){
@@ -1059,44 +1307,130 @@ function drawPotions(){
     }
   });
 
-  if(potionMsg) pixelText(potionMsg, W/2, H-62, 15, '#7fe07f', null);
-  pixelText('← →  BROWSE      ENTER  USE      ESC  BACK', W/2, H-28, 16, '#c9b8ff', null);
+  if(potionMsg) pixelText(potionMsg, W/2, H-40, 15, '#7fe07f', null);
 }
 
-/* ---------- HELP SCREEN ---------- */
+/* ---------- ARMOR SCREEN (collection / reference) ---------- */
+function armorRects(){
+  const n=ARMORS.length, cw=160, gap=12;
+  const total=n*cw+(n-1)*gap, sx=Math.round((W-total)/2);
+  const cards=[];
+  for(let i=0;i<n;i++) cards.push({x:sx+i*(cw+gap), y:138, w:cw, h:250});
+  return cards;
+}
+function updateArmor(){
+  if(homeButtonClicked()){ scene='home'; menuIndex=0; return; }
+  if(pressed['ArrowRight']){ armorIndex=Math.min(ARMORS.length-1, armorIndex+1); SFX.select(); }
+  if(pressed['ArrowLeft']){  armorIndex=Math.max(0, armorIndex-1); SFX.select(); }
+  if(pressed['Backspace']){ scene='home'; menuIndex=0; }
+  armorRects().forEach((r,i)=>{
+    if(mouse.x>r.x&&mouse.x<r.x+r.w&&mouse.y>r.y&&mouse.y<r.y+r.h) armorIndex=i;
+  });
+}
+function drawArmor(){
+  drawArena();
+  ctx.fillStyle='rgba(13,11,20,.8)'; ctx.fillRect(0,0,W,H);
+  pixelText('ARMOR', W/2, 60, 40, '#ffd23f', '#ff8a00');
+  pixelText('EARNED BY WINNING MATCHES — WEAKEST FIRST', W/2, 98, 15, '#c9b8ff', null);
+  pixelText('OWNED '+armorsUnlocked.size+'/'+ARMORS.length, W-90, 40, 14, '#7fe07f', null);
+  drawHomeButton();
+
+  armorRects().forEach((r,i)=>{
+    const a=ARMORS[i], on=armorsUnlocked.has(a.key), sel=i===armorIndex;
+    fillRR(r.x-4,r.y-4,r.w+8,r.h+8, 12, sel ? a.body : '#2a2140');
+    fillRR(r.x,r.y,r.w,r.h, 9, '#141024');
+    const cx=r.x+r.w/2;
+    drawArmorIcon(cx-27, r.y+26, 54, a, {broken:!on});
+    if(on){
+      pixelText(a.name, cx, r.y+128, 17, sel? a.body : '#fff', null);
+      pixelText('DURABILITY '+a.dura, cx, r.y+152, 12, '#9a8fc0', null);
+      const bw=armorBestWorst(a);
+      pixelText('RESISTS '+bw.best.toUpperCase(), cx, r.y+182, 12, '#7fe07f', null);
+      pixelText('WEAK TO '+bw.worst.toUpperCase(), cx, r.y+204, 12, '#ff8a5a', null);
+    } else {
+      const lx=cx, ly=r.y+132;
+      ctx.fillStyle=sel?'#ffd23f':'#6a5f8a';
+      ctx.fillRect(lx-8,ly-16,16,5); ctx.fillRect(lx-10,ly-14,4,12); ctx.fillRect(lx+6,ly-14,4,12);
+      ctx.fillRect(lx-16, ly-2, 32, 26);
+      ctx.fillStyle='#0f0c1a'; ctx.fillRect(lx-3, ly+6, 6, 10);
+      pixelText('LOCKED', cx, r.y+180, 14, sel?'#ffd23f':'#6a5f8a', null);
+      pixelText('WIN A MATCH', cx, r.y+202, 11, '#8a7fb0', null);
+    }
+  });
+
+  pixelText('Owned armors LAYER UP automatically in battle — weakest first, then stronger as each breaks.',
+            W/2, H-28, 14, '#c9b8ff', null);
+}
+
+/* ---------- HELP SCREEN (scrollable) ---------- */
 const HELP_LINES = [
   ['CONTROLS', '#ffd23f'],
   ['←  →      Move left / right', '#fff'],
   ['↑        Jump', '#fff'],
-  ['↓        Block (hold to guard)', '#fff'],
+  ['↓        Block (hold to fully guard)', '#fff'],
   ['SPACE    Attack with your weapon', '#fff'],
   ['C        Swap to a random weapon', '#fff'],
+  ['ESC      Return to the menu', '#fff'],
   ['', '#fff'],
   ['HOW TO PLAY', '#ffd23f'],
-  ['Win 2 rounds to win the match (best of 3).', '#c9b8ff'],
+  ['Best of 3 — win 2 rounds to take the match.', '#c9b8ff'],
   ['Drain the CPU’s health bar to win a round.', '#c9b8ff'],
-  ['Blocking cuts damage — but you can’t move.', '#c9b8ff'],
-  ['Time your hits and back off when hurt!', '#c9b8ff'],
+  ['Face the CPU and time your strikes.', '#c9b8ff'],
+  ['Back off to recover when you’re hurt.', '#c9b8ff'],
   ['', '#fff'],
-  ['TIPS', '#ffd23f'],
-  ['WEAPONS changes your reach, speed & power.', '#7fe07f'],
+  ['BLOCKING', '#ffd23f'],
+  ['Hold ↓ to guard. A guarded hit deals NO', '#c9b8ff'],
+  ['damage — but you can’t move while blocking.', '#c9b8ff'],
+  ['Grenade blasts punch through blocks!', '#c9b8ff'],
+  ['', '#fff'],
+  ['WEAPONS', '#ffd23f'],
+  ['MELEE: fists, sword, hammer, sabers, whip.', '#7fe07f'],
+  ['RANGED: kunai & element gun fire shots.', '#7fe07f'],
+  ['THROWN: grenade lobs a big blast.', '#7fe07f'],
+  ['Each has its own reach, speed & power.', '#7fe07f'],
+  ['', '#fff'],
+  ['ARMOR', '#ffd23f'],
+  ['WIN MATCHES to earn armor: wood → leather', '#7fe07f'],
+  ['→ chain → gold → iron (weakest first).', '#7fe07f'],
+  ['Owned armors LAYER UP in battle — the weakest', '#c9b8ff'],
+  ['is worn first; when it breaks the next takes over.', '#c9b8ff'],
+  ['Each armor resists weapon types differently:', '#c9b8ff'],
+  ['e.g. chain shrugs off blades but hammers smash it;', '#c9b8ff'],
+  ['energy melts wood but gold resists it.', '#c9b8ff'],
+  ['', '#fff'],
+  ['UNLOCKS & POTIONS', '#ffd23f'],
+  ['WIN ROUNDS to UNLOCK new weapons.', '#7fe07f'],
+  ['WIN MATCHES to earn a random POTION:', '#7fe07f'],
+  ['• ENCHANT: +12% weapon damage (max +3).', '#b8a8e0'],
+  ['• HEALTH: +15 max HP (max +60).', '#b8a8e0'],
+  ['Spend potions on the POTIONS screen.', '#7fe07f'],
   ['DIFFICULTY sets how tough the CPU fights.', '#7fe07f'],
-  ['WIN ROUNDS to UNLOCK new weapons!', '#7fe07f'],
-  ['WIN MATCHES to earn POTIONS (enchant / health).', '#7fe07f'],
   ['Progress is SAVED in this browser.', '#7fe07f']
 ];
+function helpContentHeight(){
+  let h=0;
+  for(const [txt,col] of HELP_LINES) h += txt==='' ? 12 : (col==='#ffd23f'?26:22);
+  return h;
+}
+function helpViewport(){ const top=100, bottom=H-40; return { top, bottom, vh:(bottom-top-16) }; }
+function helpMaxScroll(){ return Math.max(0, helpContentHeight() - helpViewport().vh); }
 function updateHelp(){
-  if(pressed['Space']||pressed['Enter']||pressed['ArrowDown']||pressed['Backspace']||mouse.click){
-    scene='home'; SFX.select();
-  }
+  if(homeButtonClicked()){ scene='home'; menuIndex=0; return; }
+  if(keys['ArrowDown']) helpScroll += 8;
+  if(keys['ArrowUp'])   helpScroll -= 8;
+  if(wheel)             helpScroll += wheel;
+  helpScroll = Math.max(0, Math.min(helpMaxScroll(), helpScroll));
 }
 function drawHelp(){
   drawArena();
   ctx.fillStyle='rgba(13,11,20,.82)'; ctx.fillRect(0,0,W,H);
   pixelText('HOW TO PLAY', W/2, 64, 40, '#ffd23f', '#ff8a00');
+  drawHomeButton();
+  const vp = helpViewport();
   ctx.save();
+  ctx.beginPath(); ctx.rect(0, vp.top, W, vp.bottom-vp.top); ctx.clip();
   ctx.textAlign='left';
-  let y=104; const x=W/2-260;
+  let y = vp.top+16 - helpScroll; const x = W/2-260;
   for(const [txt,col] of HELP_LINES){
     if(txt===''){ y+=12; continue; }
     const header = col==='#ffd23f';
@@ -1107,11 +1441,20 @@ function drawHelp(){
     y += header ? 26 : 22;
   }
   ctx.restore();
-  pixelText('press SPACE / ↓ / click to go back', W/2, H-34, 16, '#7a6fa0', null);
+  // scrollbar
+  const maxS = helpMaxScroll();
+  if(maxS>0){
+    const trackX=W-44, trackY=vp.top+6, trackH=vp.bottom-vp.top-12;
+    ctx.fillStyle='rgba(255,255,255,.08)'; ctx.fillRect(trackX,trackY,6,trackH);
+    const thumbH=Math.max(24, trackH*vp.vh/helpContentHeight());
+    const thumbY=trackY + (trackH-thumbH)*(helpScroll/maxS);
+    ctx.fillStyle='#7a6fa0'; ctx.fillRect(trackX,thumbY,6,thumbH);
+  }
 }
 
 /* ---------- FIGHT ---------- */
 function updateFight(){
+  if(homeButtonClicked(fightHomeBtnRect())){ scene='home'; menuIndex=0; return; }  // quit to menu
   if(roundBanner>0){ roundBanner--; if(roundBanner>60){ return; } }
   controlPlayer(player);
   controlAI(enemy, player);
@@ -1129,6 +1472,7 @@ function updateFight(){
     if(player.wins>=2 || enemy.wins>=2){
       matchResult = player.wins>=2 ? 'YOU WIN!' : 'YOU LOSE';
       potionNotice = player.wins>=2 ? awardPotion() : null;  // win the match -> earn a potion
+      armorNotice  = player.wins>=2 ? awardArmor()  : null;  // ...and the next armor
       if(player.wins>=2) SFX.win(); else SFX.lose();
       scene='matchover';
       roundBanner=0;
@@ -1155,18 +1499,21 @@ function drawFight(){
   // HUD
   drawHealthBar(player, 30, 'left');
   drawHealthBar(enemy, W-370, 'right');
-  pixelText('YOU', 120, 100, 16, '#8fbfff', null);
-  pixelText('CPU', W-120, 100, 16, '#ff9a9a', null);
+  pixelText('YOU', 200, 98, 16, '#8fbfff', null);
+  pixelText('CPU', W-200, 98, 16, '#ff9a9a', null);
   pixelText('ROUND '+round, W/2, 44, 22, '#ffd23f', null);
   pixelText('LEVEL: '+DIFFICULTIES[difficulty].name, W/2, 72, 14, DIFFICULTIES[difficulty].color, null);
-  pixelText(player.weapon.name, 200, 100, 14, '#7fe07f', null);
-  pixelText(enemy.weapon.name, W-200, 100, 14, '#ff7f7f', null);
+  pixelText(player.weapon.name, 200, 120, 13, '#7fe07f', null);
+  pixelText(enemy.weapon.name, W-200, 120, 13, '#ff7f7f', null);
+  drawArmorHUD(player);
 
   if(roundBanner>0){
     ctx.fillStyle='rgba(0,0,0,'+Math.min(0.5,roundBanner/200)+')'; ctx.fillRect(0,0,W,H);
     const scale = roundBanner>60 ? 1+(roundBanner-60)/80 : 1;
     pixelText(bannerText, W/2, H/2, 54*scale, '#ffd23f', '#ff8a00');
   }
+  // in-fight quit button (only during actual play, not the round-over backdrop)
+  if(scene==='fight') drawHomeButton(fightHomeBtnRect());
 }
 
 /* ---------- ROUND / MATCH OVER ---------- */
@@ -1195,10 +1542,17 @@ function drawRoundover(){
   }
 }
 
+// OKAY button sits just below however many reward notices are shown
+function matchNoticeCount(){ return (unlockNotice?1:0)+(potionNotice?1:0)+(armorNotice?1:0); }
+function okayBtnRect(){
+  const ny = (H/2+84) + matchNoticeCount()*28;
+  const w=180, h=50;
+  return { x:Math.round(W/2-w/2), y:Math.round(ny+6), w, h };
+}
 function updateMatchover(){
   updateParticles();
-  if(pressed['Space']||pressed['Enter']){ scene='home'; menuIndex=0; }
-  if(mouse.click){ scene='home'; menuIndex=0; }
+  // dismiss only via the OKAY button (Enter confirms it); no space-bar / click-anywhere
+  if(pressed['Enter'] || (mouse.click && inRect(okayBtnRect()))){ SFX.select(); scene='home'; menuIndex=0; }
 }
 function drawMatchover(){
   drawArena();
@@ -1209,9 +1563,54 @@ function drawMatchover(){
   pixelText(matchResult, W/2, H/2-40, 90, win?'#ffd23f':'#ff5a5a', win?'#ff8a00':'#900');
   pixelText('SCORE  YOU '+player.wins+'  —  '+enemy.wins+' CPU', W/2, H/2+40, 26, '#fff', null);
   let ny = H/2+84;
-  if(unlockNotice){ pixelText('★ NEW WEAPON UNLOCKED: '+unlockNotice, W/2, ny, 18, '#ffd23f', '#ff8a00'); ny += 30; }
-  if(potionNotice){ pixelText('★ POTION EARNED: '+potionNotice.name, W/2, ny, 18, potionNotice.glow, potionNotice.icon); ny += 30; }
-  pixelText('PRESS SPACE / CLICK FOR MENU', W/2, ny+8, 18, '#c9b8ff', null);
+  if(unlockNotice){ pixelText('★ NEW WEAPON UNLOCKED: '+unlockNotice, W/2, ny, 18, '#ffd23f', '#ff8a00'); ny += 28; }
+  if(potionNotice){ pixelText('★ POTION EARNED: '+potionNotice.name, W/2, ny, 18, potionNotice.glow, potionNotice.icon); ny += 28; }
+  if(armorNotice){ pixelText('★ ARMOR EARNED: '+armorNotice.name, W/2, ny, 18, armorNotice.body, armorNotice.trim); ny += 28; }
+  // OKAY button
+  const r = okayBtnRect(), hot = inRect(r);
+  fillRR(r.x-4,r.y-4,r.w+8,r.h+8, 14, hot?'#ffd23f':'#2a2140');
+  fillRR(r.x,r.y,r.w,r.h, 10, '#141024');
+  pixelText('OKAY', r.x+r.w/2, r.y+r.h/2, 24, hot?'#ffd23f':'#c9b8ff', hot?'#ff8a00':null);
+}
+
+/* ---------- RESET CONFIRM ---------- */
+function resetRects(){
+  const w=190, h=56, gap=44, y=Math.round(H/2)+44;
+  const total=2*w+gap, sx=Math.round((W-total)/2);
+  return [ {x:sx, y, w, h}, {x:sx+w+gap, y, w, h} ];   // [NO, YES]
+}
+function doReset(confirm){
+  if(confirm){ resetGame(); SFX.win(); } else SFX.select();
+  scene='home'; menuIndex=0;
+}
+function updateReset(){
+  if(pressed['ArrowLeft']||pressed['ArrowRight']){ resetSel^=1; SFX.select(); }
+  if(pressed['KeyY']) return doReset(true);
+  if(pressed['KeyN']) return doReset(false);
+  if(pressed['Enter']||pressed['Space']) return doReset(resetSel===1);
+  const rects = resetRects();
+  rects.forEach((r,i)=>{
+    if(mouse.x>r.x&&mouse.x<r.x+r.w&&mouse.y>r.y&&mouse.y<r.y+r.h){
+      resetSel=i;
+      if(mouse.click) doReset(i===1);
+    }
+  });
+}
+function drawConfirmBtn(r, label, sel, col){
+  fillRR(r.x-4,r.y-4,r.w+8,r.h+8, 14, sel ? col : '#2a2140');
+  fillRR(r.x,r.y,r.w,r.h, 10, '#141024');
+  pixelText(label, r.x+r.w/2, r.y+r.h/2, 20, sel?col:'#9a8fc0', sel?col:null);
+}
+function drawReset(){
+  drawHome();                                  // menu as a dimmed backdrop
+  ctx.fillStyle='rgba(13,11,20,.86)'; ctx.fillRect(0,0,W,H);
+  pixelText('ARE YOU SURE?', W/2, H/2-96, 46, '#ff5a5a', '#900');
+  pixelText('This will RESET ALL the data —', W/2, H/2-38, 17, '#c9b8ff', null);
+  pixelText('unlocked weapons, potions, enchants & progress.', W/2, H/2-14, 17, '#c9b8ff', null);
+  pixelText('This cannot be undone.', W/2, H/2+10, 15, '#8a7fb0', null);
+  const [no,yes]=resetRects();
+  drawConfirmBtn(no,  'NO, KEEP',  resetSel===0, '#7fe07f');
+  drawConfirmBtn(yes, 'YES, WIPE', resetSel===1, '#ff5a5a');
 }
 
 /* ---------- QUIT ---------- */
@@ -1230,17 +1629,20 @@ function loop(){
   switch(scene){
     case 'home': updateHome(); drawHome(); break;
     case 'weapons': updateWeapons(); drawWeapons(); break;
+    case 'armor': updateArmor(); drawArmor(); break;
     case 'potions': updatePotions(); drawPotions(); break;
     case 'difficulty': updateDifficulty(); drawDifficulty(); break;
     case 'help': updateHelp(); drawHelp(); break;
     case 'fight': updateFight(); drawFight(); break;
     case 'roundover': updateRoundover(); drawRoundover(); break;
     case 'matchover': updateMatchover(); drawMatchover(); break;
+    case 'reset': updateReset(); drawReset(); break;
     case 'quit': drawQuit(); break;
   }
   // clear one-frame input
   for(const k in pressed) pressed[k]=false;
   mouse.click = false;
+  wheel = 0;
   requestAnimationFrame(loop);
 }
 loop();
