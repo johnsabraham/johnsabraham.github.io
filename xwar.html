@@ -30,9 +30,19 @@
     position:fixed; bottom:8px; left:0; right:0; text-align:center;
     font-size:12px; color:#5a4f78; letter-spacing:1px;
   }
+  #home {
+    position:fixed; top:calc(10px + env(safe-area-inset-top, 0px)); left:10px; z-index:10;
+    width:44px; height:44px; border-radius:50%;
+    display:grid; place-items:center; font-size:22px; text-decoration:none;
+    background:#2a2140; border:3px solid #5a4f78;
+    box-shadow:0 4px 0 #000; opacity:.85;
+  }
+  #home:hover { opacity:1; }
+  #home:active { transform:translateY(3px); box-shadow:0 1px 0 #000; }
 </style>
 </head>
 <body>
+<a id="home" href="./" aria-label="Back to the arcade">🏠</a>
 <div id="wrap"><canvas id="c" width="900" height="520"></canvas></div>
 <div id="hint">MOVE ← →   JUMP ↑   BLOCK ↓   ATTACK: SPACE   SWAP WEAPON: C   MENU: mouse or ↑↓ + ENTER</div>
 <script>
