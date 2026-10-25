@@ -102,6 +102,8 @@ h1 span{display:block;color:var(--cyan);font-size:.44em;letter-spacing:.06em;
 .btn--pink{background:var(--pink);color:#fff}
 .btn--sun{background:var(--sun)}
 .btn--ghost{background:var(--cream)}
+.btn--sm{font-size:clamp(.9rem,3.6vw,1.1rem);padding:.5em .9em;box-shadow:0 6px 0 var(--ink),0 10px 16px rgba(5,2,20,.5)}
+.btn--sm:active{transform:translateY(6px)}
 
 .topbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px}
 .icon-btn{
@@ -217,9 +219,9 @@ h1 span{display:block;color:var(--cyan);font-size:.44em;letter-spacing:.06em;
 .hole.up{cursor:pointer}
 
 /* ---- balloons ---- */
-#balloonArena{position:relative;height:min(60vh,440px);overflow:hidden}
+#balloonArena{--bw:clamp(86px,25vw,124px);position:relative;height:min(60vh,440px);overflow:hidden}
 .balloon{
-  position:absolute;bottom:-160px;width:clamp(62px,17vw,88px);
+  position:absolute;bottom:-200px;width:var(--bw);
   padding:0;background:none;will-change:transform;
   animation:rise linear forwards;
 }
@@ -257,7 +259,7 @@ h1 span{display:block;color:var(--cyan);font-size:.44em;letter-spacing:.06em;
 
 @media (prefers-reduced-motion:reduce){
   *{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important}
-  .balloon{animation:rise linear forwards !important;animation-duration:6s !important}
+  .balloon{animation:rise linear forwards !important;animation-duration:10s !important}
 }
 </style>
 </head>
@@ -335,6 +337,7 @@ h1 span{display:block;color:var(--cyan);font-size:.44em;letter-spacing:.06em;
         <span class="stat">Score<b id="moleScore">0</b></span>
         <span class="stat warn">Time<b id="moleTime">30</b></span>
         <span class="stat">Best<b id="moleBest">0</b></span>
+        <button class="btn btn--sun btn--sm" data-restart="mole" aria-label="Restart Whack-a-Mole">↻ Restart</button>
       </div>
     </div>
     <div class="board">
@@ -367,6 +370,7 @@ h1 span{display:block;color:var(--cyan);font-size:.44em;letter-spacing:.06em;
         <span class="stat">Popped<b id="balScore">0</b></span>
         <span class="stat warn">Time<b id="balTime">30</b></span>
         <span class="stat">Best<b id="balBest">0</b></span>
+        <button class="btn btn--sun btn--sm" data-restart="balloon" aria-label="Restart Balloon Pop">↻ Restart</button>
       </div>
     </div>
     <div class="board">
@@ -599,6 +603,8 @@ const Mole = GAMES.mole = {
       hole.className = 'hole';
       hole.setAttribute('aria-label', 'Mole hole ' + (i + 1));
       hole.innerHTML = '<span class="mole" aria-hidden="true">🐹</span>';
+      // pointerdown registers the instant a finger lands; click keeps keyboard play working
+      hole.addEventListener('pointerdown', () => this.hit(hole));
       hole.addEventListener('click', () => this.hit(hole));
       grid.appendChild(hole);
     }
@@ -635,14 +641,13 @@ const Mole = GAMES.mole = {
     this.active = hole;
     hole.classList.add('up');
 
-    // moles get faster as the round goes on
-    const speed = 1.0 - (this.ROUND - this.left) / this.ROUND * 0.5;
-    const upFor = rand(620, 1150) * speed;
+    // little kids: moles stay up a long time and never speed up
+    this.hideId = setTimeout(() => this.down(hole), rand(1800, 2600));
+  },
 
-    this.hideId = setTimeout(() => {
-      hole.classList.remove('up', 'bonk');
-      this.popId = setTimeout(() => this.next(), rand(180, 480) * speed);
-    }, upFor);
+  down(hole) {
+    hole.classList.remove('up', 'bonk');
+    this.popId = setTimeout(() => this.next(), rand(300, 600));
   },
 
   hit(hole) {
@@ -651,6 +656,9 @@ const Mole = GAMES.mole = {
     this.score++;
     $('#moleScore').textContent = this.score;
     Sound.bonk();
+    // a bonk brings the next mole sooner, so hitting feels rewarding
+    clearTimeout(this.hideId);
+    this.hideId = setTimeout(() => this.down(hole), 350);
   },
 
   end() {
@@ -711,17 +719,17 @@ const Balloon = GAMES.balloon = {
     b.className = 'balloon';
     b.setAttribute('aria-label', 'Pop the balloon');
     b.style.setProperty('--c', COLORS[randInt(0, COLORS.length - 1)]);
-    b.style.left = rand(2, 78) + '%';
-    b.style.setProperty('--dist', (arena.clientHeight + 260) + 'px');
-    b.style.animationDuration = rand(4.2, 7.5) + 's';
+    b.style.left = 'calc((100% - var(--bw)) * ' + rand(0, 1) + ')';
+    b.style.setProperty('--dist', (arena.clientHeight + 320) + 'px');
+    b.style.animationDuration = rand(8, 11) + 's';
     b.innerHTML = '<span class="body"></span><span class="string"></span>';
-    b.addEventListener('animationend', () => b.remove());
+    b.addEventListener('animationend', e => { if (e.target === b) b.remove(); });
+    b.addEventListener('pointerdown', () => this.pop(b));
     b.addEventListener('click', () => this.pop(b));
     arena.appendChild(b);
 
-    // spawn faster as the round goes on
-    const gap = rand(430, 900) * (1 - (this.ROUND - this.left) / this.ROUND * 0.45);
-    this.spawnId = setTimeout(() => this.spawn(), gap);
+    // little kids: a steady, gentle stream that never speeds up
+    this.spawnId = setTimeout(() => this.spawn(), rand(900, 1400));
   },
 
   pop(b) {
