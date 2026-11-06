@@ -321,6 +321,7 @@ a.tile{color:inherit;text-decoration:none}
       <div class="stats">
         <span class="stat">Pairs<b id="memPairs">0/6</b></span>
         <span class="stat">Tries<b id="memTries">0</b></span>
+        <button class="btn btn--sun btn--sm" data-restart="memory" aria-label="Restart Memory Match">↻ Restart</button>
       </div>
     </div>
     <div class="board">
@@ -590,7 +591,7 @@ const Memory = GAMES.memory = {
     Sound.fanfare();
     confetti(110);
     $('#memMsg').textContent = 'All 6 twins found in ' + this.tries + ' tries!';
-    setTimeout(() => $('#memOver').classList.add('show'), 550);
+    this.timer = setTimeout(() => $('#memOver').classList.add('show'), 550);
   },
 
   stop() { clearTimeout(this.timer); this.lock = false; }
